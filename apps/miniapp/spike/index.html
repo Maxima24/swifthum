@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0b0d12">
+<title>SwiftHum — Audio Spike</title>
+<style>
+  :root {
+    --bg: #0b0d12;
+    --panel: #141821;
+    --panel-2: #1c2230;
+    --border: #2a3142;
+    --text: #e6e9ef;
+    --muted: #8a93a6;
+    --accent: #4cd6b1;
+    --accent-dim: #2e8a72;
+    --warn: #ffb454;
+    --err: #ff6b6b;
+    --ok: #4cd6b1;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  body { min-height: 100vh; padding: 16px; padding-bottom: 80px; max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 18px; margin: 0 0 4px; letter-spacing: 0.5px; }
+  .sub { color: var(--muted); font-size: 12px; margin-bottom: 16px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px; margin-bottom: 12px; }
+  .panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 1.2px;
+    color: var(--muted); margin: 0 0 12px; font-weight: 600; }
+  .status-grid { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-family: var(--mono); font-size: 12px; }
+  .status-grid dt { color: var(--muted); }
+  .status-grid dd { margin: 0; }
+  .status-grid dd.ok { color: var(--ok); }
+  .status-grid dd.warn { color: var(--warn); }
+  .status-grid dd.err { color: var(--err); }
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  textarea, input[type=text], select {
+    width: 100%; background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 12px; color: var(--text);
+    font-family: var(--mono); font-size: 13px; resize: vertical;
+  }
+  textarea:focus, input:focus, select:focus { outline: none; border-color: var(--accent-dim); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .row > * { flex: 1 1 auto; }
+  button {
+    background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+    padding: 10px 14px; border-radius: 8px; font-size: 13px; cursor: pointer;
+    font-family: inherit; min-height: 40px; touch-action: manipulation;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent-dim); }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button.primary { background: var(--accent); color: #0b0d12; border-color: var(--accent); font-weight: 600; }
+  button.danger { color: var(--err); border-color: #3a2a2f; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .preset-row { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+  .preset-row button { flex: 0 1 auto; padding: 6px 10px; font-size: 11px; min-height: 28px; color: var(--muted); }
+  .field { margin-bottom: 12px; }
+  .field:last-child { margin-bottom: 0; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 10px 0; }
+  .stat { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px; text-align: center; }
+  .stat .v { font-family: var(--mono); font-size: 20px; font-weight: 600; }
+  .stat .l { font-size: 10px; text-transform: uppercase; color: var(--muted); letter-spacing: 1px; margin-top: 2px; }
+  .log {
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px; height: 220px; overflow-y: auto; font-family: var(--mono); font-size: 11px;
+  }
+  .log-entry { padding: 4px 0; border-bottom: 1px dashed var(--border); }
+  .log-entry:last-child { border-bottom: none; }
+  .log-entry .t { color: var(--muted); margin-right: 8px; }
+  .log-entry.ok .v { color: var(--ok); }
+  .log-entry.err .v { color: var(--err); }
+  .log-entry .v { word-break: break-all; }
+  .listening-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--err); margin-right: 6px; vertical-align: middle;
+  }
+  .listening-dot.active { background: var(--ok); animation: pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+  .footer { text-align: center; color: var(--muted); font-size: 11px; margin-top: 16px; line-height: 1.6; }
+  .footer code { background: var(--panel-2); padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+</style>
+</head>
+<body>
+
+<h1>SwiftHum — Audio Spike</h1>
+<div class="sub">ggwave POC · validate ultrasonic payment-token transmission</div>
+
+<div class="panel">
+  <h2>Status</h2>
+  <dl class="status-grid">
+    <dt>ggwave</dt><dd id="s-ggwave" class="warn">loading…</dd>
+    <dt>audio</dt><dd id="s-audio" class="muted">not initialized</dd>
+    <dt>mic</dt><dd id="s-mic" class="muted">not requested</dd>
+    <dt>sample rate</dt><dd id="s-sr" class="muted">—</dd>
+  </dl>
+</div>
+
+<div class="panel">
+  <h2>Broadcast</h2>
+  <div class="field">
+    <label for="txPayload">Payload</label>
+    <textarea id="txPayload" rows="3" placeholder="text to encode"></textarea>
+    <div class="preset-row">
+      <button data-preset="token">payment token (~70b)</button>
+      <button data-preset="short">short (8b)</button>
+      <button data-preset="medium">medium (32b)</button>
+      <button data-preset="long">long (140b)</button>
+    </div>
+    <div class="sub" style="margin-top:6px"><span id="txLen">0</span> bytes</div>
+  </div>
+
+  <div class="grid-2">
+    <div class="field">
+      <label for="txProtocol">Protocol</label>
+      <select id="txProtocol">
+        <option value="ULTRASOUND_NORMAL" selected>[U] Normal (slowest, most reliable)</option>
+        <option value="ULTRASOUND_FAST">[U] Fast</option>
+        <option value="ULTRASOUND_FASTEST">[U] Fastest</option>
+        <option value="AUDIBLE_NORMAL">Audible Normal</option>
+        <option value="AUDIBLE_FAST">Audible Fast</option>
+        <option value="AUDIBLE_FASTEST">Audible Fastest</option>
+        <option value="DT_NORMAL">[DT] Normal (dial tone, durable)</option>
+        <option value="DT_FAST">[DT] Fast</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="txVolume">Volume (<span id="txVolumeV">25</span>)</label>
+      <input type="range" id="txVolume" min="1" max="100" value="25" style="width:100%">
+    </div>
+  </div>
+
+  <div class="row">
+    <button id="btnSend" class="primary">Send once</button>
+    <button id="btnSendN">Send 10×</button>
+    <button id="btnSendStop" class="danger" hidden>Stop</button>
+  </div>
+  <div class="sub" id="txStatus" style="margin-top:8px">idle</div>
+</div>
+
+<div class="panel">
+  <h2>Listen</h2>
+  <div class="row">
+    <button id="btnListenStart" class="primary">Start listening</button>
+    <button id="btnListenStop" class="danger" hidden>Stop listening</button>
+    <button id="btnClearLog">Clear log</button>
+  </div>
+  <div class="sub" style="margin-top:8px">
+    <span id="listeningDot" class="listening-dot"></span>
+    <span id="rxStatus">not listening</span>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="v" id="rxCount">0</div><div class="l">decoded</div></div>
+    <div class="stat"><div class="v" id="rxLast">—</div><div class="l">last (ms ago)</div></div>
+    <div class="stat"><div class="v" id="rxRate">—</div><div class="l">success/min</div></div>
+  </div>
+
+  <div class="log" id="rxLog"></div>
+</div>
+
+<div class="footer">
+  Tip: open this page on two phones. One listens, one sends.<br>
+  Mic needs HTTPS — run via <code>cloudflared tunnel --url http://localhost:8080</code><br>
+  Best test: <b>3 ft apart, broadcaster volume 80%+</b>
+</div>
+
+<script src="https://unpkg.com/ggwave/ggwave.js"></script>
+<script>
+(() => {
+  'use strict';
+
+  // ------- presets -------
+  const PRESETS = {
+    short: 'abc12345',
+    medium: 'cm5a9b2k.7q3hpx0w.aBcDeFgH12',
+    token: 'cm5a9b2kf0000xx7q3hpx0w8.gM4kPqR2NxVtZ9hJ.Ab7CdEf9GhIj0KlMn1OpQ',
+    long: 'cm5a9b2kf0000xx7q3hpx0w8.gM4kPqR2NxVtZ9hJWuY5XaB8.Ab7CdEf9GhIj0KlMn1OpQrStUvWxYz23456789AbCdEfGh.padding_chars_to_reach_140_bytes_xyzzzz',
+  };
+
+  // ------- state -------
+  let ggwave = null;
+  let parameters = null;
+  let instance = null;
+  let audioCtx = null;
+  let micStream = null;
+  let micSource = null;
+  let recorder = null;
+  let isListening = false;
+  let isSending = false;
+  let stopBatch = false;
+  let rxHistory = []; // { ts, text }
+
+  // ------- dom -------
+  const $ = (id) => document.getElementById(id);
+  const txPayload = $('txPayload');
+  const txProtocol = $('txProtocol');
+  const txVolume = $('txVolume');
+  const txVolumeV = $('txVolumeV');
+  const txStatus = $('txStatus');
+  const txLen = $('txLen');
+  const btnSend = $('btnSend');
+  const btnSendN = $('btnSendN');
+  const btnSendStop = $('btnSendStop');
+  const btnListenStart = $('btnListenStart');
+  const btnListenStop = $('btnListenStop');
+  const btnClearLog = $('btnClearLog');
+  const rxStatus = $('rxStatus');
+  const rxCount = $('rxCount');
+  const rxLast = $('rxLast');
+  const rxRate = $('rxRate');
+  const rxLog = $('rxLog');
+  const listeningDot = $('listeningDot');
+
+  const sGgwave = $('s-ggwave');
+  const sAudio = $('s-audio');
+  const sMic = $('s-mic');
+  const sSr = $('s-sr');
+
+  // ------- helpers -------
+  const setStatus = (el, text, cls) => {
+    el.textContent = text;
+    el.className = cls || '';
+  };
+
+  const convertTypedArray = (src, Type) => {
+    const buf = new ArrayBuffer(src.byteLength);
+    new src.constructor(buf).set(src);
+    return new Type(buf);
+  };
+
+  const fmtTs = (d) => d.toISOString().slice(11, 23);
+
+  const appendLog = (text, isOk = true, meta = '') => {
+    const div = document.createElement('div');
+    div.className = 'log-entry ' + (isOk ? 'ok' : 'err');
+    const ts = fmtTs(new Date());
+    div.innerHTML =
+      `<span class="t">${ts}</span>` +
+      `<span class="v">${text.replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</span>` +
+      (meta ? `<span class="t" style="margin-left:8px">${meta}</span>` : '');
+    rxLog.insertBefore(div, rxLog.firstChild);
+    while (rxLog.children.length > 100) rxLog.removeChild(rxLog.lastChild);
+  };
+
+  const updateStats = () => {
+    rxCount.textContent = String(rxHistory.length);
+    if (rxHistory.length === 0) {
+      rxLast.textContent = '—';
+      rxRate.textContent = '—';
+      return;
+    }
+    const now = Date.now();
+    const last = rxHistory[rxHistory.length - 1].ts;
+    rxLast.textContent = String(now - last);
+    const oneMinAgo = now - 60_000;
+    const inLastMin = rxHistory.filter(e => e.ts >= oneMinAgo).length;
+    rxRate.textContent = String(inLastMin);
+  };
+  setInterval(() => { if (rxHistory.length) updateStats(); }, 500);
+
+  // ------- ggwave init -------
+  const initGgwave = async () => {
+    if (typeof ggwave_factory !== 'function') {
+      setStatus(sGgwave, 'factory missing — check script', 'err');
+      throw new Error('ggwave_factory not loaded');
+    }
+    ggwave = await ggwave_factory();
+    setStatus(sGgwave, 'loaded', 'ok');
+  };
+
+  const initAudio = () => {
+    if (audioCtx) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AC({ sampleRate: 48000 });
+    parameters = ggwave.getDefaultParameters();
+    parameters.sampleRateInp = audioCtx.sampleRate;
+    parameters.sampleRateOut = audioCtx.sampleRate;
+    instance = ggwave.init(parameters);
+    setStatus(sAudio, audioCtx.state, audioCtx.state === 'running' ? 'ok' : 'warn');
+    setStatus(sSr, `${audioCtx.sampleRate} Hz`, 'ok');
+    audioCtx.onstatechange = () => {
+      setStatus(sAudio, audioCtx.state, audioCtx.state === 'running' ? 'ok' : 'warn');
+    };
+  };
+
+  const getProtocolId = () => {
+    const key = `GGWAVE_PROTOCOL_${txProtocol.value}`;
+    const id = ggwave.ProtocolId[key];
+    if (id === undefined) throw new Error(`unknown protocol ${key}`);
+    return id;
+  };
+
+  // ------- broadcast -------
+  const transmitOnce = () => new Promise((resolve, reject) => {
+    try {
+      const text = txPayload.value;
+      if (!text) { reject(new Error('payload empty')); return; }
+      const vol = parseInt(txVolume.value, 10);
+      const waveform = ggwave.encode(instance, text, getProtocolId(), vol);
+      const buf = convertTypedArray(waveform, Float32Array);
+      const buffer = audioCtx.createBuffer(1, buf.length, audioCtx.sampleRate);
+      buffer.getChannelData(0).set(buf);
+      const src = audioCtx.createBufferSource();
+      src.buffer = buffer;
+      src.connect(audioCtx.destination);
+      src.onended = () => resolve(buf.length / audioCtx.sampleRate);
+      src.start(0);
+    } catch (e) { reject(e); }
+  });
+
+  const setSendingUi = (sending) => {
+    isSending = sending;
+    btnSend.disabled = sending;
+    btnSendN.hidden = sending;
+    btnSendStop.hidden = !sending;
+  };
+
+  const doSendOnce = async () => {
+    if (!ggwave) return;
+    initAudio();
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
+    setSendingUi(true);
+    txStatus.textContent = 'sending…';
+    const t0 = performance.now();
+    try {
+      const dur = await transmitOnce();
+      const elapsed = (performance.now() - t0).toFixed(0);
+      txStatus.textContent = `sent in ${elapsed}ms (audio ${dur.toFixed(2)}s)`;
+    } catch (e) {
+      txStatus.textContent = `error: ${e.message}`;
+    } finally {
+      setSendingUi(false);
+    }
+  };
+
+  const doSendBatch = async () => {
+    if (!ggwave) return;
+    initAudio();
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
+    setSendingUi(true);
+    stopBatch = false;
+    const total = 10;
+    for (let i = 1; i <= total; i++) {
+      if (stopBatch) { txStatus.textContent = `stopped after ${i-1}/${total}`; break; }
+      txStatus.textContent = `sending ${i}/${total}…`;
+      try { await transmitOnce(); }
+      catch (e) { txStatus.textContent = `error at ${i}: ${e.message}`; break; }
+      await new Promise(r => setTimeout(r, 600));
+    }
+    if (!stopBatch) txStatus.textContent = `batch complete (${total})`;
+    setSendingUi(false);
+  };
+
+  // ------- listen -------
+  const startListening = async () => {
+    if (!ggwave) return;
+    initAudio();
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, autoGainControl: false, noiseSuppression: false }
+      });
+      setStatus(sMic, 'granted', 'ok');
+    } catch (e) {
+      setStatus(sMic, `denied: ${e.message}`, 'err');
+      return;
+    }
+    micSource = audioCtx.createMediaStreamSource(micStream);
+    const bufferSize = 1024;
+    recorder = audioCtx.createScriptProcessor(bufferSize, 1, 1);
+    recorder.onaudioprocess = (e) => {
+      const ch = e.inputBuffer.getChannelData(0);
+      const samples = convertTypedArray(new Float32Array(ch), Int8Array);
+      const res = ggwave.decode(instance, samples);
+      if (res && res.length > 0) {
+        const text = new TextDecoder('utf-8').decode(res);
+        rxHistory.push({ ts: Date.now(), text });
+        if (rxHistory.length > 500) rxHistory.shift();
+        appendLog(text, true, `${text.length}b`);
+        updateStats();
+      }
+    };
+    micSource.connect(recorder);
+    recorder.connect(audioCtx.destination);
+    isListening = true;
+    btnListenStart.hidden = true;
+    btnListenStop.hidden = false;
+    rxStatus.textContent = 'listening';
+    listeningDot.classList.add('active');
+  };
+
+  const stopListening = () => {
+    if (recorder) { recorder.disconnect(); recorder.onaudioprocess = null; recorder = null; }
+    if (micSource) { micSource.disconnect(); micSource = null; }
+    if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+    isListening = false;
+    btnListenStart.hidden = false;
+    btnListenStop.hidden = true;
+    rxStatus.textContent = 'stopped';
+    listeningDot.classList.remove('active');
+  };
+
+  // ------- wire events -------
+  document.querySelectorAll('[data-preset]').forEach(b => {
+    b.addEventListener('click', () => {
+      txPayload.value = PRESETS[b.dataset.preset] || '';
+      txLen.textContent = String(new TextEncoder().encode(txPayload.value).length);
+    });
+  });
+  txPayload.addEventListener('input', () => {
+    txLen.textContent = String(new TextEncoder().encode(txPayload.value).length);
+  });
+  txVolume.addEventListener('input', () => { txVolumeV.textContent = txVolume.value; });
+
+  btnSend.addEventListener('click', doSendOnce);
+  btnSendN.addEventListener('click', doSendBatch);
+  btnSendStop.addEventListener('click', () => { stopBatch = true; });
+  btnListenStart.addEventListener('click', startListening);
+  btnListenStop.addEventListener('click', stopListening);
+  btnClearLog.addEventListener('click', () => {
+    rxHistory = [];
+    rxLog.innerHTML = '';
+    updateStats();
+  });
+
+  // ------- boot -------
+  txPayload.value = PRESETS.token;
+  txLen.textContent = String(new TextEncoder().encode(txPayload.value).length);
+  initGgwave().catch(e => setStatus(sGgwave, `error: ${e.message}`, 'err'));
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh api *)",
+      "Read(//tmp/**)",
+      "Bash(node --check serve.mjs)",
+      "Read(//c/c/Users/ADMIN/Documents/swifthum/apps/miniapp/**)",
+      "Bash(cloudflared --version)",
+      "Bash(where.exe cloudflared *)",
+      "Bash(winget --version)"
+    ]
+  }
+}
