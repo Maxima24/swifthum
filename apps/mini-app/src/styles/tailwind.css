@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+@theme {
+  --color-tg-bg: var(--tg-theme-bg-color, #ffffff);
+  --color-tg-text: var(--tg-theme-text-color, #0f0f0f);
+  --color-tg-hint: var(--tg-theme-hint-color, #707579);
+  --color-tg-link: var(--tg-theme-link-color, #2481cc);
+  --color-tg-button: var(--tg-theme-button-color, #2481cc);
+  --color-tg-button-text: var(--tg-theme-button-text-color, #ffffff);
+  --color-tg-secondary-bg: var(--tg-theme-secondary-bg-color, #f4f4f5);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  min-height: 100dvh;
+}
+
+body {
+  background-color: var(--color-tg-bg);
+  color: var(--color-tg-text);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
