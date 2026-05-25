@@ -1,8 +1,10 @@
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { RuleCard } from '../components/RuleCard';
 import { EmptyState } from '../components/EmptyState';
 import { SuggestedRules } from '../components/SuggestedRules';
+import { Header } from '../components/Header';
+import { Icon } from '../components/Icon';
 import { useRules } from '../hooks/rules';
 import { usePrices } from '../hooks/prices';
 import { useMainButton } from '../hooks/useMainButton';
@@ -33,65 +35,71 @@ export function Dashboard() {
   const usdt = prices?.USDT;
 
   return (
-    <div className="flex flex-col gap-6 p-5 pt-10 pb-32">
-      <motion.header
-        initial={{ opacity: 0, y: -8 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="space-y-1"
-      >
-        <div className="flex items-center justify-between">
-          <p className="text-tg-hint text-xs uppercase tracking-wider">The Watcher</p>
+    <div className="flex flex-col px-5 pb-28">
+      <Header
+        eyebrow="The Watcher"
+        title="Your rules"
+        subtitle={
+          usdt && (
+            <span className="inline-flex items-center gap-1">
+              <Icon name="trending-up" size={12} className="text-emerald-500" />
+              USDT{' '}
+              <span className="text-tg-text font-semibold tabular-nums">
+                {formatPriceMinor(usdt)}
+              </span>
+            </span>
+          )
+        }
+        right={
           <button
-            onClick={() => {
-              haptic('light');
-              navigate('/settings');
-            }}
-            className="text-tg-hint text-xs underline-offset-2 hover:underline"
+            onClick={goNew}
+            aria-label="New rule"
+            className="inline-flex items-center gap-1 rounded-full bg-gradient-to-br from-brand-from to-brand-to text-white px-3 py-1.5 text-xs font-semibold shadow-sm shadow-brand-from/30 active:scale-95 transition-transform"
           >
-            Settings
+            <Icon name="plus" size={14} strokeWidth={2.5} />
+            New
           </button>
-        </div>
-        <h1 className="text-2xl font-semibold">Your rules</h1>
-        {usdt && (
-          <p className="text-sm text-tg-hint">
-            USDT is at{' '}
-            <span className="text-tg-text font-medium">{formatPriceMinor(usdt)}</span>
-          </p>
-        )}
-      </motion.header>
+        }
+      />
 
-      <SuggestedRules />
+      <div className="flex flex-col gap-5 pt-4">
+        <SuggestedRules />
 
-      {isLoading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-28 rounded-2xl bg-tg-secondary-bg animate-pulse" />
-          ))}
-        </div>
-      ) : sorted.length === 0 ? (
-        <EmptyState
-          title="No rules yet"
-          description="Create your first rule to start auto-trading on SwiftyEx."
-          action={
-            <button
-              onClick={goNew}
-              className="rounded-xl bg-tg-button text-tg-button-text px-6 py-3 font-medium"
-            >
-              + Create rule
-            </button>
-          }
-        />
-      ) : (
-        <ul className="flex flex-col gap-3">
-          <AnimatePresence initial={false}>
-            {sorted.map((r, i) => (
-              <li key={r.id}>
-                <RuleCard rule={r} index={i} />
-              </li>
+        {isLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="h-24 rounded-2xl bg-tg-secondary-bg/60 animate-pulse"
+              />
             ))}
-          </AnimatePresence>
-        </ul>
-      )}
+          </div>
+        ) : sorted.length === 0 ? (
+          <EmptyState
+            icon="rules"
+            title="No rules yet"
+            description="Create your first rule and let it watch SwiftyEx for you."
+            action={
+              <button
+                onClick={goNew}
+                className="rounded-xl bg-gradient-to-br from-brand-from to-brand-to text-white px-6 py-3 font-semibold shadow-lg shadow-brand-from/30 active:scale-[0.98] transition-transform"
+              >
+                Create rule
+              </button>
+            }
+          />
+        ) : (
+          <ul className="flex flex-col gap-2.5">
+            <AnimatePresence initial={false}>
+              {sorted.map((r, i) => (
+                <li key={r.id}>
+                  <RuleCard rule={r} index={i} />
+                </li>
+              ))}
+            </AnimatePresence>
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

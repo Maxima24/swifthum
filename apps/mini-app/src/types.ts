@@ -1,3 +1,5 @@
+// ─── The Watcher (rules) ─────────────────────────────────────────
+
 export type Asset = 'USDT' | 'BTC' | 'ETH';
 export type Operator = 'lt' | 'gt' | 'crosses_above' | 'crosses_below';
 export type Action = 'buy' | 'sell' | 'alert';
@@ -39,4 +41,39 @@ export interface PriceMap {
   USDT?: number;
   BTC?: number;
   ETH?: number;
+}
+
+// ─── Payments (ultrasonic) ───────────────────────────────────────
+
+export interface Wallet {
+  balanceMinor: number;
+  currency: 'NGN';
+}
+
+export interface PaymentIntent {
+  intentId: string;
+  token: string;
+  amountMinor: number;
+  currency: 'NGN';
+  expiresAt: string;
+  riskScore: number;
+}
+
+export interface RedemptionResult {
+  status: 'ok';
+  intentId: string;
+  amountMinor: number;
+  currency: 'NGN';
+  sender: { displayName: string };
+}
+
+export type TransferDirection = 'sent' | 'received';
+
+export interface Transaction {
+  id: string;
+  direction: TransferDirection;
+  amountMinor: number;
+  currency: 'NGN';
+  counterparty: { displayName: string };
+  settledAt: string;
 }

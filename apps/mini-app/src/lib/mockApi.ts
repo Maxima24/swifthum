@@ -4,10 +4,23 @@ import {
   mockPrices,
   mockSuggestions,
 } from '../mocks/rules';
-import type { Execution, Rule, RuleState } from '../types';
+import type {
+  Execution,
+  PaymentIntent,
+  RedemptionResult,
+  Rule,
+  RuleState,
+  Transaction,
+  Wallet,
+} from '../types';
 
 let rules: Rule[] = [...initialMockRules];
 let executions: Execution[] = [...initialMockExecutions];
+
+// In-memory payment state
+let wallet: Wallet = { balanceMinor: 25_000_00, currency: 'NGN' };
+const intents: Record<string, PaymentIntent & { senderName: string; consumed?: boolean }> = {};
+let transactions: Transaction[] = [];
 
 const delay = (ms = 200 + Math.random() * 200) => new Promise((r) => setTimeout(r, ms));
 
@@ -23,12 +36,19 @@ function computeState(rule: Pick<Rule, 'when' | 'state'>): RuleState {
   return diffPct <= 0.01 ? 'watching' : 'sleeping';
 }
 
+function makeToken(payload: object): string {
+  // Mock JWT-ish format — short, fits ggwave's ~140-byte payload budget
+  const body = btoa(JSON.stringify(payload)).replace(/=+$/, '');
+  const sig = btoa(Math.random().toString(36).slice(2, 10)).replace(/=+$/, '');
+  return `swfh.${body}.${sig}`;
+}
+
 export async function mockApi<T>(path: string, init?: RequestInit): Promise<T> {
   await delay();
   const method = (init?.method ?? 'GET').toUpperCase();
   const body = init?.body ? JSON.parse(init.body as string) : null;
 
-  // /rules
+  // ─── Rules ───────────────────────────────────────────────────
   if (path === '/rules' && method === 'GET') return rules as T;
   if (path === '/rules' && method === 'POST') {
     const rule: Rule = {
@@ -45,8 +65,6 @@ export async function mockApi<T>(path: string, init?: RequestInit): Promise<T> {
     rules = [rule, ...rules];
     return rule as T;
   }
-
-  // /rules/:id
   const idMatch = path.match(/^\/rules\/([^/]+)$/);
   if (idMatch) {
     const id = idMatch[1];
@@ -64,8 +82,6 @@ export async function mockApi<T>(path: string, init?: RequestInit): Promise<T> {
       return undefined as T;
     }
   }
-
-  // /rules/:id/pause | resume
   const pauseMatch = path.match(/^\/rules\/([^/]+)\/(pause|resume)$/);
   if (pauseMatch && method === 'POST') {
     const [, id, action] = pauseMatch;
@@ -74,30 +90,88 @@ export async function mockApi<T>(path: string, init?: RequestInit): Promise<T> {
     rule.state = action === 'pause' ? 'paused' : computeState({ ...rule, state: 'sleeping' });
     return rule as T;
   }
-
-  // /rules/:id/executions
   const execMatch = path.match(/^\/rules\/([^/]+)\/executions$/);
   if (execMatch && method === 'GET') {
     const id = execMatch[1];
     return executions.filter((e) => e.ruleId === id) as T;
   }
 
-  // /prices/current
-  if (path.startsWith('/prices/current') && method === 'GET') {
-    return mockPrices as T;
-  }
+  // ─── Prices / Insights ───────────────────────────────────────
+  if (path.startsWith('/prices/current') && method === 'GET') return mockPrices as T;
+  if (path === '/insights/suggested-rules' && method === 'GET') return mockSuggestions as T;
 
-  // /insights/suggested-rules
-  if (path === '/insights/suggested-rules' && method === 'GET') {
-    return mockSuggestions as T;
-  }
-
-  // /auth/telegram — accept anything in mocks
+  // ─── Auth ────────────────────────────────────────────────────
   if (path === '/auth/telegram' && method === 'POST') {
     return {
       sessionToken: 'mock_jwt_' + Date.now(),
       user: { id: 'u_demo', telegramId: 12345, displayName: 'Demo User' },
     } as T;
+  }
+
+  // ─── Wallet ──────────────────────────────────────────────────
+  if (path === '/wallets/me' && method === 'GET') return wallet as T;
+
+  // ─── Payment intents (sender) ────────────────────────────────
+  if (path === '/intents' && method === 'POST') {
+    const amountMinor = body.amountMinor as number;
+    if (amountMinor > wallet.balanceMinor) {
+      throw new Error('400 insufficient_balance');
+    }
+    const intent: PaymentIntent & { senderName: string } = {
+      intentId: nextId('i'),
+      token: makeToken({ a: amountMinor, t: Date.now() }),
+      amountMinor,
+      currency: 'NGN',
+      expiresAt: new Date(Date.now() + 30_000).toISOString(),
+      riskScore: 0.1,
+      senderName: 'Demo User',
+    };
+    intents[intent.token] = intent;
+    return {
+      intentId: intent.intentId,
+      token: intent.token,
+      amountMinor: intent.amountMinor,
+      currency: intent.currency,
+      expiresAt: intent.expiresAt,
+      riskScore: intent.riskScore,
+    } as T;
+  }
+
+  // ─── Redeem (receiver) ───────────────────────────────────────
+  if (path === '/redeem' && method === 'POST') {
+    const token = body.token as string;
+    const intent = intents[token];
+    if (!intent) throw new Error('401 invalid_or_expired');
+    if (intent.consumed) throw new Error('409 already_redeemed');
+    if (new Date(intent.expiresAt).getTime() < Date.now()) throw new Error('410 expired');
+    intent.consumed = true;
+
+    transactions = [
+      {
+        id: nextId('tx'),
+        direction: 'received',
+        amountMinor: intent.amountMinor,
+        currency: 'NGN',
+        counterparty: { displayName: intent.senderName },
+        settledAt: new Date().toISOString(),
+      },
+      ...transactions,
+    ];
+    wallet = { ...wallet, balanceMinor: wallet.balanceMinor + intent.amountMinor };
+
+    const result: RedemptionResult = {
+      status: 'ok',
+      intentId: intent.intentId,
+      amountMinor: intent.amountMinor,
+      currency: 'NGN',
+      sender: { displayName: intent.senderName },
+    };
+    return result as T;
+  }
+
+  // ─── Transactions ────────────────────────────────────────────
+  if (path.startsWith('/transactions') && method === 'GET') {
+    return { items: transactions, nextCursor: null } as T;
   }
 
   throw new Error(`Mock route not found: ${method} ${path}`);
