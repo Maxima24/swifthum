@@ -77,3 +77,16 @@ export interface Transaction {
   counterparty: { displayName: string };
   settledAt: string;
 }
+
+// ─── SwiftyEx account / portfolio ────────────────────────────────
+
+export interface SwiftyexAccountStatus {
+  linked: boolean;
+  label?: string;
+  linkedAt?: string;
+}
+
+export interface SwiftyexHolding {
+  asset: Asset;
+  qtyBase: number; // 8-decimal base units (backend serializes bigint → number)
+}

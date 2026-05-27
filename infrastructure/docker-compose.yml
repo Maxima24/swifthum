@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: swifthum-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: swifthum
+      POSTGRES_USER: swifthum
+      POSTGRES_PASSWORD: swifthum
+    ports:
+      # Host 5442 → container 5432. A native Windows Postgres squats host :5432,
+      # so we publish on 5442 to avoid the loopback shadowing it.
+      - "5442:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U swifthum -d swifthum"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: swifthum-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres_data:

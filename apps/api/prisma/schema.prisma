@@ -1,0 +1,156 @@
+// SwiftHum API — Prisma schema. Money is BIGINT minor units (kobo).
+// IDs are app-generated with cuid2 + prefix (e.g. u_xxx, r_xxx, i_xxx, tx_xxx).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String           @id
+  telegramId    BigInt           @unique
+  displayName   String
+  createdAt     DateTime         @default(now())
+
+  wallet         Wallet?
+  rules          Rule[]
+  intents        PaymentIntent[]
+  transactions   Transaction[]
+  swiftyAccount  SwiftyexAccount?
+  swiftyHoldings SwiftyexHolding[]
+  swiftyOrders   SwiftyexOrder[]
+}
+
+model SwiftyexAccount {
+  id          String   @id
+  userId      String   @unique
+  apiKey      String   // AES-256-GCM ciphertext (see credential-crypto.ts), never plaintext
+  label       String?
+  linkedAt    DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SwiftyexHolding {
+  id        String   @id
+  userId    String
+  asset     String
+  qtyBase   BigInt   @default(0) // asset base units at 8 decimals (QTY_SCALE)
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, asset])
+}
+
+model SwiftyexOrder {
+  id               String   @id
+  userId           String
+  side             String   // buy | sell
+  asset            String
+  amountMinor      BigInt
+  status           String   // success | failed | simulated | pending
+  filledPriceMinor BigInt?
+  filledQtyBase    BigInt?
+  detail           String?
+  externalId       String?  // the live SwiftyEx order id, once wired
+  createdAt        DateTime @default(now())
+
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model Wallet {
+  userId       String @id
+  balanceMinor BigInt @default(0)
+  currency     String @default("NGN")
+
+  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Rule {
+  id              String    @id
+  userId          String
+  name            String
+  whenAsset       String
+  whenOp          String
+  whenPriceMinor  BigInt
+  thenAction      String
+  thenAmountMinor BigInt?
+  thenCurrency    String?
+  state           String    @default("sleeping")
+  firedCount      Int       @default(0)
+  lastEvaluatedAt DateTime?
+  createdAt       DateTime  @default(now())
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  executions      RuleExecution[]
+
+  @@index([userId, createdAt])
+  @@index([state])
+}
+
+model RuleExecution {
+  id               String   @id
+  ruleId           String
+  firedAt          DateTime @default(now())
+  priceAtFireMinor BigInt
+  outcome          String
+  detail           String?
+
+  rule             Rule     @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId, firedAt])
+}
+
+model PriceSnapshot {
+  id         String   @id
+  asset      String
+  priceMinor BigInt
+  takenAt    DateTime @default(now())
+
+  @@index([asset, takenAt])
+}
+
+model PaymentIntent {
+  id          String    @id
+  senderId    String
+  amountMinor BigInt
+  currency    String    @default("NGN")
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  refundedAt  DateTime?
+  riskScore   Float     @default(0.1)
+  createdAt   DateTime  @default(now())
+
+  sender      User      @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, createdAt])
+  @@index([expiresAt, consumedAt, refundedAt])
+}
+
+model Transaction {
+  id               String   @id
+  userId           String
+  direction        String   // sent | received
+  amountMinor      BigInt
+  currency         String   @default("NGN")
+  counterpartyName String
+  intentId         String?
+  settledAt        DateTime @default(now())
+
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, settledAt])
+}
+
+model UsedNonce {
+  tokenHash String   @id
+  usedAt    DateTime @default(now())
+}

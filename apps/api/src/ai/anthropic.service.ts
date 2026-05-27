@@ -1,0 +1,147 @@
+import Anthropic from '@anthropic-ai/sdk';
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import type { Asset } from '../common/assets';
+import { SUGGEST_RULES_SYSTEM_PROMPT } from './prompts';
+
+export interface SuggestedRule {
+  name: string;
+  when: {
+    asset: Asset;
+    op: 'lt' | 'gt' | 'crosses_above' | 'crosses_below';
+    priceMinor: number;
+  };
+  then: {
+    action: 'buy' | 'sell' | 'alert';
+    amountMinor?: number;
+    currency?: 'NGN';
+  };
+  reason: string;
+}
+
+export interface PriceSnapshotInput {
+  asset: Asset;
+  priceMinor: number;
+  takenAt: string;
+}
+
+export interface UserRuleInput {
+  whenAsset: string;
+  whenOp: string;
+  whenPriceMinor: number;
+}
+
+const SUGGEST_RULES_TIMEOUT_MS = 3000;
+
+@Injectable()
+export class AnthropicService {
+  private readonly logger = new Logger('Anthropic');
+  private readonly client: Anthropic | null;
+  private readonly model: string;
+
+  constructor(config: ConfigService) {
+    const apiKey = config.get<string>('ANTHROPIC_API_KEY');
+    this.model = config.get<string>('ANTHROPIC_MODEL', 'claude-haiku-4-5-20251001');
+    this.client = apiKey ? new Anthropic({ apiKey }) : null;
+    if (!this.client) {
+      this.logger.warn('ANTHROPIC_API_KEY not set — all AI calls will fall back to static results');
+    }
+  }
+
+  /**
+   * Returns 3-5 suggested rules for the dashboard. Uses prompt caching on the
+   * system block so subsequent calls only pay for the user-message tokens.
+   * On any failure (no key, timeout, parse error, network), returns the static
+   * fallback list — the frontend treats either as success.
+   */
+  async suggestRules(args: {
+    recentPrices: PriceSnapshotInput[];
+    userRules: UserRuleInput[];
+  }): Promise<SuggestedRule[]> {
+    if (!this.client) return this.fallbackSuggestions();
+
+    try {
+      const userPrompt = JSON.stringify(args);
+      const res = await this.client.messages.create(
+        {
+          model: this.model,
+          max_tokens: 1024,
+          system: [
+            {
+              type: 'text',
+              text: SUGGEST_RULES_SYSTEM_PROMPT,
+              cache_control: { type: 'ephemeral' },
+            },
+          ],
+          messages: [{ role: 'user', content: userPrompt }],
+        },
+        { timeout: SUGGEST_RULES_TIMEOUT_MS },
+      );
+
+      const textBlock = res.content.find((b) => b.type === 'text');
+      const raw = textBlock && 'text' in textBlock ? textBlock.text : '';
+      const parsed = this.parseSuggestionsJson(raw);
+      if (!parsed || parsed.length === 0) return this.fallbackSuggestions();
+      return parsed.slice(0, 5);
+    } catch (err) {
+      this.logger.warn(`suggestRules failed (${(err as Error).message}); using fallback`);
+      return this.fallbackSuggestions();
+    }
+  }
+
+  private parseSuggestionsJson(text: string): SuggestedRule[] | null {
+    if (!text) return null;
+    // Models occasionally wrap JSON in ```json fences; strip them defensively.
+    const stripped = text
+      .trim()
+      .replace(/^```(?:json)?/i, '')
+      .replace(/```$/, '')
+      .trim();
+    try {
+      const parsed = JSON.parse(stripped);
+      if (!Array.isArray(parsed)) return null;
+      return parsed.filter(this.isValidSuggestion);
+    } catch {
+      return null;
+    }
+  }
+
+  private isValidSuggestion = (s: unknown): s is SuggestedRule => {
+    if (!s || typeof s !== 'object') return false;
+    const obj = s as Record<string, unknown>;
+    const w = obj.when as Record<string, unknown> | undefined;
+    const t = obj.then as Record<string, unknown> | undefined;
+    if (!w || !t) return false;
+    return (
+      typeof obj.name === 'string' &&
+      typeof obj.reason === 'string' &&
+      typeof w.asset === 'string' &&
+      typeof w.op === 'string' &&
+      typeof w.priceMinor === 'number' &&
+      typeof t.action === 'string'
+    );
+  };
+
+  private fallbackSuggestions(): SuggestedRule[] {
+    return [
+      {
+        name: 'Buy the dip — USDT under ₦1,600',
+        when: { asset: 'USDT', op: 'lt', priceMinor: 1_600_00 },
+        then: { action: 'buy', amountMinor: 5_000_00, currency: 'NGN' },
+        reason: 'USDT often briefly dips below ₦1,600 — accumulate at the low.',
+      },
+      {
+        name: 'Sell the peak — USDT above ₦1,700',
+        when: { asset: 'USDT', op: 'gt', priceMinor: 1_700_00 },
+        then: { action: 'sell', amountMinor: 10_000_00, currency: 'NGN' },
+        reason: 'Lock in gains when USDT runs hot above ₦1,700.',
+      },
+      {
+        name: 'Alert — BTC crosses ₦100M',
+        when: { asset: 'BTC', op: 'crosses_above', priceMinor: 100_000_000_00 },
+        then: { action: 'alert' },
+        reason: 'Watch the psychological ₦100M level; useful for re-evaluating your stack.',
+      },
+    ];
+  }
+}
