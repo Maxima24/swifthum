@@ -5,12 +5,13 @@ import { EmptyState } from '../components/EmptyState';
 import { SuggestedRules } from '../components/SuggestedRules';
 import { Header } from '../components/Header';
 import { Icon } from '../components/Icon';
+import { MarketCard } from '../components/MarketCard';
+import { NotificationsBell } from '../components/NotificationsBell';
 import { useRules } from '../hooks/rules';
 import { usePrices } from '../hooks/prices';
 import { useMainButton } from '../hooks/useMainButton';
 import { haptic } from '../lib/tg';
-import { formatPriceMinor } from '../lib/format';
-import type { RuleState } from '../types';
+import type { Asset, RuleState } from '../types';
 
 const ORDER: Record<RuleState, number> = {
   fired: 0,
@@ -18,6 +19,8 @@ const ORDER: Record<RuleState, number> = {
   sleeping: 2,
   paused: 3,
 };
+
+const MARKET_ASSETS: Asset[] = ['USDT', 'BTC', 'ETH'];
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -32,38 +35,46 @@ export function Dashboard() {
   useMainButton({ text: '+ New rule', onClick: goNew });
 
   const sorted = [...rules].sort((a, b) => ORDER[a.state] - ORDER[b.state]);
-  const usdt = prices?.USDT;
 
   return (
     <div className="flex flex-col pb-28 lg:pb-12">
       <Header
         eyebrow="The Watcher"
         title="Your rules"
-        subtitle={
-          usdt && (
-            <span className="inline-flex items-center gap-1">
-              <Icon name="trending-up" size={12} className="text-emerald-500" />
-              USDT{' '}
-              <span className="text-tg-text font-semibold tabular-nums">
-                {formatPriceMinor(usdt)}
-              </span>
-            </span>
-          )
-        }
         right={
-          // Hidden on lg+ because the sidebar already has a prominent "+ New rule" button
-          <button
-            onClick={goNew}
-            aria-label="New rule"
-            className="lg:hidden inline-flex items-center gap-1 rounded-full bg-gradient-to-br from-brand-from to-brand-to text-white px-3 py-1.5 text-xs font-semibold shadow-sm shadow-brand-from/30 active:scale-95 transition-transform"
-          >
-            <Icon name="plus" size={14} strokeWidth={2.5} />
-            New
-          </button>
+          <div className="flex items-center gap-2">
+            <NotificationsBell />
+            <button
+              onClick={goNew}
+              aria-label="New rule"
+              className="lg:hidden inline-flex items-center gap-1 rounded-full bg-gradient-to-br from-brand-from to-brand-to text-white px-3 py-1.5 text-xs font-semibold shadow-sm shadow-brand-from/30 active:scale-95 transition-transform"
+            >
+              <Icon name="plus" size={14} strokeWidth={2.5} />
+              New
+            </button>
+          </div>
         }
       />
 
-      <div className="flex flex-col gap-6 pt-4 lg:gap-8 lg:pt-6">
+      <div className="flex flex-col gap-5 pt-4 lg:gap-7 lg:pt-6">
+        {/* Market row — desktop only. Sparklines appear once backend exposes
+            /prices/:asset?range=24h; until then cards show current price only. */}
+        <section className="hidden lg:block space-y-2">
+          <h2 className="text-[11px] font-semibold text-tg-hint uppercase tracking-[0.12em] px-1">
+            Market
+          </h2>
+          <div className="grid grid-cols-3 gap-3">
+            {MARKET_ASSETS.map((asset, i) => (
+              <MarketCard
+                key={asset}
+                asset={asset}
+                priceMinor={prices?.[asset]}
+                index={i}
+              />
+            ))}
+          </div>
+        </section>
+
         <SuggestedRules />
 
         <section className="space-y-3">

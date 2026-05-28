@@ -6,6 +6,8 @@ import { useBackButton } from '../hooks/useBackButton';
 import { useSwiftyexAccount, useLinkSwiftyex, useUnlinkSwiftyex } from '../hooks/swiftyex';
 import { Header } from '../components/Header';
 import { Icon } from '../components/Icon';
+import { ThemeSwitcher } from '../components/ThemeSwitcher';
+import { toast } from '../lib/toast';
 
 export function Settings() {
   const navigate = useNavigate();
@@ -18,13 +20,19 @@ export function Settings() {
 
   useBackButton(useCallback(() => navigate(-1), [navigate]));
 
-  const toggleLink = () => {
+  const toggleLink = async () => {
     if (pending) return;
     haptic(linked ? 'error' : 'success');
-    if (linked) {
-      unlinkMutation.mutate();
-    } else {
-      linkMutation.mutate('demo-sandbox-key');
+    try {
+      if (linked) {
+        await unlinkMutation.mutateAsync();
+        toast.info('SwiftyEx unlinked', 'Rules will no longer execute real trades.');
+      } else {
+        await linkMutation.mutateAsync('demo-sandbox-key');
+        toast.success('SwiftyEx linked', 'Your rules can now place trades.');
+      }
+    } catch (e: any) {
+      toast.error('Linking failed', String(e?.message ?? e));
     }
   };
 
@@ -33,7 +41,6 @@ export function Settings() {
       <Header eyebrow="Settings" title="Account" />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 pt-4 lg:gap-6 lg:pt-6">
-        {/* Left column on desktop: SwiftyEx + Notifications */}
         <div className="lg:col-span-2 space-y-5">
           <section className="space-y-2">
             <h2 className="text-[11px] font-semibold text-tg-hint uppercase tracking-[0.12em] px-1">
@@ -107,9 +114,23 @@ export function Settings() {
               <Toggle on={notifications} />
             </button>
           </section>
+
+          <section className="space-y-2">
+            <h2 className="text-[11px] font-semibold text-tg-hint uppercase tracking-[0.12em] px-1">
+              Appearance
+            </h2>
+            <div className="rounded-2xl bg-tg-secondary-bg ring-1 ring-black/5 p-4 lg:p-5 space-y-3">
+              <p className="text-sm">
+                Theme
+                <span className="text-xs text-tg-hint block mt-0.5 font-normal">
+                  System follows your OS (or Telegram theme inside the app).
+                </span>
+              </p>
+              <ThemeSwitcher />
+            </div>
+          </section>
         </div>
 
-        {/* Right column on desktop: About */}
         <section className="space-y-2">
           <h2 className="text-[11px] font-semibold text-tg-hint uppercase tracking-[0.12em] px-1">
             About

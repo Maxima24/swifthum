@@ -14,6 +14,7 @@ import { haptic } from '../lib/tg';
 import { useBackButton } from '../hooks/useBackButton';
 import { Header } from '../components/Header';
 import { Icon } from '../components/Icon';
+import { toast } from '../lib/toast';
 
 export function RuleDetail() {
   const { id } = useParams<{ id: string }>();
@@ -50,14 +51,28 @@ export function RuleDetail() {
 
   const togglePause = async () => {
     haptic('light');
-    if (rule.state === 'paused') await resume.mutateAsync(rule.id);
-    else await pause.mutateAsync(rule.id);
+    try {
+      if (rule.state === 'paused') {
+        await resume.mutateAsync(rule.id);
+        toast.success('Rule resumed', rule.name);
+      } else {
+        await pause.mutateAsync(rule.id);
+        toast.info('Rule paused', rule.name);
+      }
+    } catch (e: any) {
+      toast.error('Action failed', String(e?.message ?? e));
+    }
   };
 
   const remove = async () => {
     haptic('error');
-    await del.mutateAsync(rule.id);
-    navigate('/rules');
+    try {
+      await del.mutateAsync(rule.id);
+      toast.info('Rule deleted', rule.name);
+      navigate('/rules');
+    } catch (e: any) {
+      toast.error('Could not delete', String(e?.message ?? e));
+    }
   };
 
   return (

@@ -13,6 +13,28 @@
   --color-brand-to: #8b5cf6;
 }
 
+/* Explicit light override (when user picks Light in Settings) */
+[data-theme="light"] {
+  --color-tg-bg: #f6f7fb;
+  --color-tg-text: #0f0f0f;
+  --color-tg-hint: #6b7280;
+  --color-tg-link: #6366f1;
+  --color-tg-button: #6366f1;
+  --color-tg-button-text: #ffffff;
+  --color-tg-secondary-bg: #ffffff;
+}
+
+/* Dark override */
+[data-theme="dark"] {
+  --color-tg-bg: #0d0f14;
+  --color-tg-text: #e7e9ec;
+  --color-tg-hint: #8a93a6;
+  --color-tg-link: #818cf8;
+  --color-tg-button: #818cf8;
+  --color-tg-button-text: #ffffff;
+  --color-tg-secondary-bg: #161a22;
+}
+
 html,
 body,
 #root {
@@ -21,10 +43,9 @@ body,
 }
 
 body {
-  /* Subtle ambient gradient — looks intentional on desktop without "phone in window" */
   background:
-    radial-gradient(900px 600px at 100% 0%, rgba(139, 92, 246, 0.08), transparent 60%),
-    radial-gradient(700px 500px at 0% 100%, rgba(99, 102, 241, 0.06), transparent 60%),
+    radial-gradient(900px 600px at 100% 0%, rgba(139, 92, 246, 0.10), transparent 60%),
+    radial-gradient(700px 500px at 0% 100%, rgba(99, 102, 241, 0.08), transparent 60%),
     var(--color-tg-bg);
   background-attachment: fixed;
   color: var(--color-tg-text);

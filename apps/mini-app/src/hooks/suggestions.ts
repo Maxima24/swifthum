@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api';
-import type { Suggestion } from '../mocks/rules';
+import type { Suggestion } from '../types';
 
 export function useSuggestedRules() {
   return useQuery({

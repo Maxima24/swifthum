@@ -1,14 +1,8 @@
-import { mockApi } from './mockApi';
 import { getToken } from './session';
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
-const USE_MOCKS = (import.meta.env.VITE_USE_MOCKS ?? 'true') !== 'false';
-
-export const useMocks = USE_MOCKS;
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  if (USE_MOCKS) return mockApi<T>(path, init);
-
   const t = getToken();
   const res = await fetch(`${BASE_URL}${path}`, {
     ...init,

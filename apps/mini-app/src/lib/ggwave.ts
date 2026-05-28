@@ -44,7 +44,9 @@ export function isReady(): boolean {
   return !!instance;
 }
 
-export function encode(text: string, volume = 12): Float32Array | null {
+// volume is ggwave's 0–100 amplitude. 5–8 is plenty loud for short range
+// and avoids the audible "ssss" artifact some speakers produce at the band edges.
+export function encode(text: string, volume = 6): Float32Array | null {
   if (!instance || !lib) return null;
   try {
     return lib.encode(
@@ -78,16 +80,24 @@ function convertTypedArray<T>(src: ArrayBufferView, Ctor: new (buf: ArrayBuffer)
   return new Ctor(buffer);
 }
 
-export async function playSamples(samples: Float32Array, ctx?: AudioContext): Promise<void> {
+// Default playback gain ~0.35 — attenuates the chirp further so it doesn't
+// pierce when the device volume is already high. ggwave decode tolerates this
+// fine within ~6 ft.
+export async function playSamples(
+  samples: Float32Array,
+  ctx?: AudioContext,
+  gainValue = 0.35,
+): Promise<void> {
   const audio = ctx ?? new AudioContext();
   const buf = audio.createBuffer(1, samples.length, audio.sampleRate);
-  // Copy via a fresh Float32Array to satisfy the typed Float32Array<ArrayBuffer> param
   const copy = new Float32Array(samples.length);
   copy.set(samples);
   buf.copyToChannel(copy, 0);
   const src = audio.createBufferSource();
   src.buffer = buf;
-  src.connect(audio.destination);
+  const gain = audio.createGain();
+  gain.gain.value = gainValue;
+  src.connect(gain).connect(audio.destination);
   return new Promise((resolve) => {
     src.onended = () => resolve();
     src.start();

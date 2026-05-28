@@ -90,3 +90,15 @@ export interface SwiftyexHolding {
   asset: Asset;
   qtyBase: number; // 8-decimal base units (backend serializes bigint → number)
 }
+
+// ─── AI insights ─────────────────────────────────────────────────
+
+export interface Suggestion {
+  id: string;
+  reason: string;
+  rule: {
+    name: string;
+    when: RuleCondition;
+    then: RuleAction;
+  };
+}

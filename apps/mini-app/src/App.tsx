@@ -10,6 +10,7 @@ import { TabBar } from './components/TabBar';
 import { Sidebar } from './components/Sidebar';
 import { Shell } from './components/Shell';
 import { AuthGate } from './components/AuthGate';
+import { Toaster } from './components/Toaster';
 
 export function App() {
   return (
@@ -29,6 +30,7 @@ export function App() {
         </Routes>
       </Shell>
       <TabBar />
+      <Toaster />
     </AuthGate>
   );
 }

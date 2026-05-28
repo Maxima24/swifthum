@@ -4,6 +4,7 @@ import { useSuggestedRules } from '../hooks/suggestions';
 import { useCreateRule } from '../hooks/rules';
 import { formatRuleSummary } from '../lib/format';
 import { haptic } from '../lib/tg';
+import { toast } from '../lib/toast';
 import type { Rule } from '../types';
 import { Icon } from './Icon';
 
@@ -60,12 +61,17 @@ export function SuggestedRules() {
               <button
                 onClick={async () => {
                   haptic('success');
-                  await create.mutateAsync({
-                    name: s.rule.name,
-                    when: s.rule.when,
-                    then: s.rule.then,
-                  });
-                  navigate('/rules');
+                  try {
+                    await create.mutateAsync({
+                      name: s.rule.name,
+                      when: s.rule.when,
+                      then: s.rule.then,
+                    });
+                    toast.success('Rule added', s.rule.name);
+                    navigate('/rules');
+                  } catch (e: any) {
+                    toast.error('Could not add rule', String(e?.message ?? e));
+                  }
                 }}
                 disabled={create.isPending}
                 className="w-full rounded-xl bg-gradient-to-br from-violet-500 to-indigo-500 text-white py-2 text-sm font-semibold disabled:opacity-50 active:scale-[0.98] transition-transform shadow-md shadow-violet-500/25"

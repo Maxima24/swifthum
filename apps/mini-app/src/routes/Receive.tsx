@@ -9,6 +9,8 @@ import { initGgwave, startListening, type MicListener } from '../lib/ggwave';
 import { QrScanner } from '../components/QrScanner';
 import { Header } from '../components/Header';
 import { Icon } from '../components/Icon';
+import { toast } from '../lib/toast';
+import { formatNgn as _fmt } from '../lib/format';
 import type { RedemptionResult } from '../types';
 
 type Mode = 'listen' | 'scan';
@@ -32,9 +34,12 @@ export function Receive() {
         const res = await redeem.mutateAsync(token);
         haptic('success');
         setResult(res);
+        toast.success(`Received ${_fmt(res.amountMinor)}`, `from ${res.sender.displayName}`);
       } catch (e: any) {
         haptic('error');
-        setError(String(e?.message ?? e));
+        const msg = String(e?.message ?? e);
+        setError(msg);
+        toast.error('Redeem failed', msg);
       }
     },
     [result, redeem],

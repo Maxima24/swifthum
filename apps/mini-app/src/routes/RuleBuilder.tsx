@@ -8,6 +8,7 @@ import { useMainButton } from '../hooks/useMainButton';
 import { useBackButton } from '../hooks/useBackButton';
 import { Header } from '../components/Header';
 import { Icon } from '../components/Icon';
+import { toast } from '../lib/toast';
 import type { Action, Asset, Operator, Rule } from '../types';
 
 const ASSETS: Asset[] = ['USDT', 'BTC', 'ETH'];
@@ -55,8 +56,17 @@ export function RuleBuilder() {
   const save = useCallback(async () => {
     if (!isValid) return;
     haptic('success');
-    await create.mutateAsync({ name: draft.name, when: draft.when, then: draft.then });
-    navigate('/rules');
+    try {
+      const saved = await create.mutateAsync({
+        name: draft.name,
+        when: draft.when,
+        then: draft.then,
+      });
+      toast.success('Rule saved', saved.name);
+      navigate('/rules');
+    } catch (e: any) {
+      toast.error('Could not save rule', String(e?.message ?? e));
+    }
   }, [isValid, create, draft, navigate]);
 
   useMainButton({

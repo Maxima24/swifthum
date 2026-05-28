@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
-import { api, useMocks } from '../lib/api';
+import { api } from '../lib/api';
 import { setSession, type SessionUser } from '../lib/session';
 import { getInitDataRaw } from '../lib/tg';
 import { Icon } from './Icon';
@@ -22,11 +22,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
     (async () => {
       try {
         const initData = getInitDataRaw() ?? '';
-        // In mock mode the mock router accepts an empty initData.
-        // In real mode an empty initData will be rejected by the backend.
-        if (!useMocks && !initData) {
+        if (!initData) {
           throw new Error(
-            'No Telegram initData found. Open this Mini App inside Telegram (via @BotFather Menu Button) — or set VITE_USE_MOCKS=true for offline dev.',
+            'No Telegram initData found. Open this Mini App inside Telegram via @BotFather → your bot → Menu Button. Use cloudflared to expose your dev server over HTTPS.',
           );
         }
         const res = await api<AuthResponse>('/auth/telegram', {
@@ -48,14 +46,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  if (status === 'loading') {
-    return <Splash />;
-  }
-
-  if (status === 'error') {
-    return <ErrorScreen message={errorMessage ?? 'Sign-in failed'} />;
-  }
-
+  if (status === 'loading') return <Splash />;
+  if (status === 'error') return <ErrorScreen message={errorMessage ?? 'Sign-in failed'} />;
   return <>{children}</>;
 }
 

@@ -4,9 +4,12 @@ import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { App } from './App';
 import { initTelegram } from './lib/tg';
+import { applyTheme } from './lib/theme';
+import { useUi } from './stores/ui';
 import './styles/tailwind.css';
 
 initTelegram();
+applyTheme(useUi.getState().theme);
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
