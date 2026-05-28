@@ -29,7 +29,7 @@ export function RuleDetail() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col px-5 pb-10">
+      <div className="flex flex-col pb-10">
         <Header back onBack={goBack} eyebrow="Rule" title="Loading…" />
         <div className="space-y-3 pt-5">
           <div className="h-4 w-4/5 rounded bg-tg-secondary-bg animate-pulse" />
@@ -41,7 +41,7 @@ export function RuleDetail() {
 
   if (!rule) {
     return (
-      <div className="flex flex-col px-5 pb-10">
+      <div className="flex flex-col pb-10">
         <Header back onBack={goBack} eyebrow="Rule" title="Not found" />
         <p className="text-tg-hint pt-5">This rule no longer exists.</p>
       </div>
@@ -61,7 +61,7 @@ export function RuleDetail() {
   };
 
   return (
-    <div className="flex flex-col px-5 pb-10 lg:pb-16">
+    <div className="flex flex-col pb-28 lg:pb-12">
       <Header
         back
         onBack={goBack}
@@ -71,53 +71,60 @@ export function RuleDetail() {
         subtitle={<span className="text-[12px] leading-snug">{formatRuleSummary(rule)}</span>}
       />
 
-      <div className="flex flex-col gap-5 pt-5">
-        <section className="grid grid-cols-2 gap-3">
-          <Stat icon="zap" label="Fired" value={`${rule.firedCount}×`} />
-          <Stat
-            icon="trending-up"
-            label="Last checked"
-            value={formatRelativeTime(rule.lastEvaluatedAt)}
-          />
-        </section>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 pt-4 lg:gap-6 lg:pt-6">
+        {/* Main column: stats + history */}
+        <div className="lg:col-span-2 flex flex-col gap-5">
+          <section className="grid grid-cols-2 gap-3">
+            <Stat icon="zap" label="Fired" value={`${rule.firedCount}×`} />
+            <Stat
+              icon="trending-up"
+              label="Last checked"
+              value={formatRelativeTime(rule.lastEvaluatedAt)}
+            />
+          </section>
 
-        <section className="space-y-2">
-          <h2 className="text-[11px] font-semibold text-tg-hint uppercase tracking-[0.12em]">
-            History
+          <section className="space-y-2">
+            <h2 className="text-[11px] font-semibold text-tg-hint uppercase tracking-[0.12em] px-1">
+              History
+            </h2>
+            {executions.length === 0 ? (
+              <p className="text-sm text-tg-hint rounded-2xl bg-tg-secondary-bg ring-1 ring-black/5 p-4">
+                Hasn't fired yet.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {executions.map((e, i) => (
+                  <motion.li
+                    key={e.id}
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.04 }}
+                    className="rounded-xl bg-tg-secondary-bg ring-1 ring-black/5 p-3 flex items-center justify-between gap-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                        <Icon name="check" size={16} />
+                      </div>
+                      <div>
+                        <p className="text-sm">{formatRelativeTime(e.firedAt)}</p>
+                        <p className="text-xs text-tg-hint">
+                          @ {formatPriceMinor(e.priceAtFireMinor)}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-emerald-700 font-medium">{e.outcome}</span>
+                  </motion.li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
+
+        {/* Side column on desktop: actions */}
+        <aside className="space-y-2 lg:sticky lg:top-24 lg:self-start">
+          <h2 className="text-[11px] font-semibold text-tg-hint uppercase tracking-[0.12em] px-1 lg:block hidden">
+            Actions
           </h2>
-          {executions.length === 0 ? (
-            <p className="text-sm text-tg-hint rounded-2xl bg-tg-secondary-bg ring-1 ring-black/5 p-4">
-              Hasn't fired yet.
-            </p>
-          ) : (
-            <ul className="space-y-2">
-              {executions.map((e, i) => (
-                <motion.li
-                  key={e.id}
-                  initial={{ opacity: 0, x: -8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.04 }}
-                  className="rounded-xl bg-tg-secondary-bg ring-1 ring-black/5 p-3 flex items-center justify-between gap-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                      <Icon name="check" size={16} />
-                    </div>
-                    <div>
-                      <p className="text-sm">{formatRelativeTime(e.firedAt)}</p>
-                      <p className="text-xs text-tg-hint">
-                        @ {formatPriceMinor(e.priceAtFireMinor)}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-[11px] text-emerald-700 font-medium">{e.outcome}</span>
-                </motion.li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        <section className="space-y-2 pt-2">
           <button
             onClick={togglePause}
             disabled={pause.isPending || resume.isPending}
@@ -134,7 +141,7 @@ export function RuleDetail() {
             <Icon name="trash" size={16} />
             {del.isPending ? 'Deleting…' : 'Delete rule'}
           </button>
-        </section>
+        </aside>
       </div>
     </div>
   );

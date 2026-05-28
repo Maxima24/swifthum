@@ -69,97 +69,103 @@ export function RuleBuilder() {
   useBackButton(goBack);
 
   return (
-    <div className="flex flex-col px-5 pb-10 lg:pb-16">
+    <div className="flex flex-col pb-28 lg:pb-12">
       <Header back onBack={goBack} eyebrow="New rule" title="Build a rule" />
 
-      <div className="flex flex-col gap-5 pt-5">
-        <Field label="Name (optional)">
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Buy USDT dip"
-            className="w-full rounded-xl bg-tg-secondary-bg ring-1 ring-black/5 px-4 py-3 outline-none focus:ring-2 focus:ring-tg-button"
-          />
-        </Field>
-
-        <Section label="WHEN" icon="trending-up" tone="amber">
-          <Field label="Asset">
-            <Select
-              value={asset}
-              onChange={(v) => setAsset(v as Asset)}
-              options={ASSETS.map((a) => ({ value: a, label: a }))}
-            />
-          </Field>
-          <Field label="Condition">
-            <Select value={op} onChange={(v) => setOp(v as Operator)} options={OPERATORS} />
-          </Field>
-          <Field label="Threshold price (₦)">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5 pt-4 lg:gap-8 lg:pt-6">
+        {/* Form — 3 cols on desktop */}
+        <div className="lg:col-span-3 flex flex-col gap-5">
+          <Field label="Name (optional)">
             <input
-              type="number"
-              inputMode="decimal"
-              value={priceNgn}
-              onChange={(e) => setPriceNgn(e.target.value)}
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Buy USDT dip"
               className="w-full rounded-xl bg-tg-secondary-bg ring-1 ring-black/5 px-4 py-3 outline-none focus:ring-2 focus:ring-tg-button"
             />
           </Field>
-        </Section>
 
-        <Section label="THEN" icon="zap" tone="emerald">
-          <Field label="Action">
-            <Select value={action} onChange={(v) => setAction(v as Action)} options={ACTIONS} />
-          </Field>
-          {action !== 'alert' && (
-            <Field label="Amount (₦)">
+          <Section label="WHEN" icon="trending-up" tone="amber">
+            <Field label="Asset">
+              <Select
+                value={asset}
+                onChange={(v) => setAsset(v as Asset)}
+                options={ASSETS.map((a) => ({ value: a, label: a }))}
+              />
+            </Field>
+            <Field label="Condition">
+              <Select value={op} onChange={(v) => setOp(v as Operator)} options={OPERATORS} />
+            </Field>
+            <Field label="Threshold price (₦)">
               <input
                 type="number"
                 inputMode="decimal"
-                value={amountNgn}
-                onChange={(e) => setAmountNgn(e.target.value)}
+                value={priceNgn}
+                onChange={(e) => setPriceNgn(e.target.value)}
                 className="w-full rounded-xl bg-tg-secondary-bg ring-1 ring-black/5 px-4 py-3 outline-none focus:ring-2 focus:ring-tg-button"
               />
             </Field>
-          )}
-        </Section>
+          </Section>
 
-        <motion.div
-          layout
-          className="rounded-2xl bg-gradient-to-br from-brand-from/[0.06] to-brand-to/[0.06] ring-1 ring-brand-from/10 p-4"
-        >
-          <div className="flex items-center gap-1.5 mb-2">
-            <Icon name="sparkles" size={12} className="text-violet-500" />
-            <p className="text-[10px] text-tg-hint uppercase tracking-[0.12em] font-semibold">
-              Preview
-            </p>
-          </div>
-          <motion.p
-            key={formatRuleSummary(draft)}
-            initial={{ opacity: 0.4 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.2 }}
-            className="text-sm leading-snug font-medium"
+          <Section label="THEN" icon="zap" tone="emerald">
+            <Field label="Action">
+              <Select value={action} onChange={(v) => setAction(v as Action)} options={ACTIONS} />
+            </Field>
+            {action !== 'alert' && (
+              <Field label="Amount (₦)">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={amountNgn}
+                  onChange={(e) => setAmountNgn(e.target.value)}
+                  className="w-full rounded-xl bg-tg-secondary-bg ring-1 ring-black/5 px-4 py-3 outline-none focus:ring-2 focus:ring-tg-button"
+                />
+              </Field>
+            )}
+          </Section>
+        </div>
+
+        {/* Preview + Save — 2 cols on desktop, sticky */}
+        <div className="lg:col-span-2 lg:sticky lg:top-24 flex flex-col gap-3 lg:self-start">
+          <motion.div
+            layout
+            className="rounded-2xl bg-gradient-to-br from-brand-from/[0.08] to-brand-to/[0.08] ring-1 ring-brand-from/10 p-5"
           >
-            {formatRuleSummary(draft)}
-          </motion.p>
-        </motion.div>
+            <div className="flex items-center gap-1.5 mb-2">
+              <Icon name="sparkles" size={12} className="text-violet-500" />
+              <p className="text-[10px] text-tg-hint uppercase tracking-[0.12em] font-semibold">
+                Preview
+              </p>
+            </div>
+            <motion.p
+              key={formatRuleSummary(draft)}
+              initial={{ opacity: 0.4 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.2 }}
+              className="text-sm leading-snug font-medium"
+            >
+              {formatRuleSummary(draft)}
+            </motion.p>
+          </motion.div>
 
-        <button
-          onClick={save}
-          disabled={!isValid}
-          className="w-full rounded-2xl bg-gradient-to-br from-brand-from to-brand-to text-white px-6 py-4 font-semibold shadow-lg shadow-brand-from/30 disabled:opacity-40 active:scale-[0.98] transition-transform"
-        >
-          {create.isPending ? 'Saving…' : 'Save rule'}
-        </button>
+          <button
+            onClick={save}
+            disabled={!isValid}
+            className="w-full rounded-2xl bg-gradient-to-br from-brand-from to-brand-to text-white px-6 py-4 font-semibold shadow-lg shadow-brand-from/30 disabled:opacity-40 active:scale-[0.98] transition-transform"
+          >
+            {create.isPending ? 'Saving…' : 'Save rule'}
+          </button>
 
-        <button
-          onClick={() => {
-            haptic('light');
-            navigate('/rules');
-          }}
-          className="rounded-xl bg-tg-secondary-bg ring-1 ring-black/5 py-3 font-medium active:scale-[0.98] transition-transform"
-        >
-          Cancel
-        </button>
+          <button
+            onClick={() => {
+              haptic('light');
+              navigate('/rules');
+            }}
+            className="rounded-xl bg-tg-secondary-bg ring-1 ring-black/5 py-3 font-medium active:scale-[0.98] transition-transform"
+          >
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
   );

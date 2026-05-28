@@ -100,7 +100,7 @@ export function Send() {
 
   if (stage === 'amount') {
     return (
-      <div className="flex flex-col px-5 pb-10 lg:pb-16">
+      <div className="flex flex-col pb-10 lg:pb-16 lg:max-w-xl lg:mx-auto">
         <Header
           back
           onBack={() => navigate('/pay')}
@@ -170,7 +170,7 @@ export function Send() {
   }
 
   return (
-    <div className="flex flex-col px-5 pb-10 lg:pb-16">
+    <div className="flex flex-col pb-10 lg:pb-16 lg:max-w-xl lg:mx-auto">
       <Header
         back
         onBack={() => navigate('/pay')}

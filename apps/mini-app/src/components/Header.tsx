@@ -21,8 +21,8 @@ export function Header({ eyebrow, title, right, subtitle, back, onBack }: Props)
   };
 
   return (
-    <header className="sticky top-0 z-20 -mx-5 px-5 pt-3 pb-2 bg-tg-bg/92 backdrop-blur-xl border-b border-black/[0.04] lg:-mx-8 lg:px-8">
-      <div className="flex items-center justify-between gap-3 min-h-[40px]">
+    <header className="sticky top-0 z-20 -mx-5 px-5 pt-3 pb-2 bg-tg-bg/92 backdrop-blur-xl border-b border-black/[0.04] lg:-mx-10 lg:px-10 lg:pt-5 lg:pb-3">
+      <div className="flex items-center justify-between gap-3 min-h-[40px] lg:min-h-[48px]">
         <div className="flex items-center gap-1 min-w-0">
           {back && (
             <button
@@ -39,7 +39,7 @@ export function Header({ eyebrow, title, right, subtitle, back, onBack }: Props)
                 {eyebrow}
               </p>
             )}
-            <h1 className="text-[17px] font-semibold truncate">{title}</h1>
+            <h1 className="text-[17px] font-semibold truncate lg:text-xl">{title}</h1>
             {subtitle && (
               <div className="text-[12px] text-tg-hint mt-0.5">{subtitle}</div>
             )}

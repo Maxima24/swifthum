@@ -35,7 +35,7 @@ export function Dashboard() {
   const usdt = prices?.USDT;
 
   return (
-    <div className="flex flex-col px-5 pb-28">
+    <div className="flex flex-col pb-28 lg:pb-12">
       <Header
         eyebrow="The Watcher"
         title="Your rules"
@@ -51,10 +51,11 @@ export function Dashboard() {
           )
         }
         right={
+          // Hidden on lg+ because the sidebar already has a prominent "+ New rule" button
           <button
             onClick={goNew}
             aria-label="New rule"
-            className="inline-flex items-center gap-1 rounded-full bg-gradient-to-br from-brand-from to-brand-to text-white px-3 py-1.5 text-xs font-semibold shadow-sm shadow-brand-from/30 active:scale-95 transition-transform"
+            className="lg:hidden inline-flex items-center gap-1 rounded-full bg-gradient-to-br from-brand-from to-brand-to text-white px-3 py-1.5 text-xs font-semibold shadow-sm shadow-brand-from/30 active:scale-95 transition-transform"
           >
             <Icon name="plus" size={14} strokeWidth={2.5} />
             New
@@ -62,43 +63,48 @@ export function Dashboard() {
         }
       />
 
-      <div className="flex flex-col gap-5 pt-4">
+      <div className="flex flex-col gap-6 pt-4 lg:gap-8 lg:pt-6">
         <SuggestedRules />
 
-        {isLoading ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="h-24 rounded-2xl bg-tg-secondary-bg/60 animate-pulse"
-              />
-            ))}
-          </div>
-        ) : sorted.length === 0 ? (
-          <EmptyState
-            icon="rules"
-            title="No rules yet"
-            description="Create your first rule and let it watch SwiftyEx for you."
-            action={
-              <button
-                onClick={goNew}
-                className="rounded-xl bg-gradient-to-br from-brand-from to-brand-to text-white px-6 py-3 font-semibold shadow-lg shadow-brand-from/30 active:scale-[0.98] transition-transform"
-              >
-                Create rule
-              </button>
-            }
-          />
-        ) : (
-          <ul className="flex flex-col gap-2.5">
-            <AnimatePresence initial={false}>
-              {sorted.map((r, i) => (
-                <li key={r.id}>
-                  <RuleCard rule={r} index={i} />
-                </li>
+        <section className="space-y-3">
+          <h2 className="text-[11px] font-semibold text-tg-hint uppercase tracking-[0.12em] px-1">
+            Active rules ({sorted.length})
+          </h2>
+          {isLoading ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              {[1, 2, 3, 4].map((i) => (
+                <div
+                  key={i}
+                  className="h-24 rounded-2xl bg-tg-secondary-bg/60 animate-pulse"
+                />
               ))}
-            </AnimatePresence>
-          </ul>
-        )}
+            </div>
+          ) : sorted.length === 0 ? (
+            <EmptyState
+              icon="rules"
+              title="No rules yet"
+              description="Create your first rule and let it watch SwiftyEx for you."
+              action={
+                <button
+                  onClick={goNew}
+                  className="rounded-xl bg-gradient-to-br from-brand-from to-brand-to text-white px-6 py-3 font-semibold shadow-lg shadow-brand-from/30 active:scale-[0.98] transition-transform"
+                >
+                  Create rule
+                </button>
+              }
+            />
+          ) : (
+            <ul className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              <AnimatePresence initial={false}>
+                {sorted.map((r, i) => (
+                  <li key={r.id}>
+                    <RuleCard rule={r} index={i} />
+                  </li>
+                ))}
+              </AnimatePresence>
+            </ul>
+          )}
+        </section>
       </div>
     </div>
   );

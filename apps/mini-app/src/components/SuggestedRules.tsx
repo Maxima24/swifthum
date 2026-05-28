@@ -26,7 +26,7 @@ export function SuggestedRules() {
         <span className="text-[11px] text-tg-hint">From your activity</span>
       </div>
 
-      <div className="flex gap-3 overflow-x-auto no-scrollbar -mx-5 px-5 pb-2 snap-x snap-mandatory">
+      <div className="flex gap-3 overflow-x-auto no-scrollbar -mx-5 px-5 pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:overflow-visible lg:mx-0 lg:px-0 lg:pb-0 lg:gap-4">
         {data.map((s, i) => {
           const previewRule: Rule = {
             id: 'preview_' + s.id,
@@ -43,9 +43,8 @@ export function SuggestedRules() {
               initial={{ opacity: 0, x: 16 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: i * 0.06 }}
-              className="snap-start shrink-0 w-72 rounded-2xl bg-gradient-to-br from-violet-500/[0.10] via-tg-secondary-bg to-tg-secondary-bg p-4 space-y-3 ring-1 ring-violet-500/15 relative overflow-hidden"
+              className="snap-start shrink-0 w-72 lg:w-auto lg:shrink rounded-2xl bg-gradient-to-br from-violet-500/[0.10] via-tg-secondary-bg to-tg-secondary-bg p-4 lg:p-5 space-y-3 ring-1 ring-violet-500/15 relative overflow-hidden"
             >
-              {/* Decorative sparkle */}
               <motion.div
                 animate={{ opacity: [0.4, 1, 0.4], scale: [1, 1.15, 1] }}
                 transition={{ duration: 3, repeat: Infinity, delay: i * 0.5 }}

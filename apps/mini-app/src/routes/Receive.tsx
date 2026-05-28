@@ -79,7 +79,7 @@ export function Receive() {
 
   if (result) {
     return (
-      <div className="flex flex-col px-5 pb-10">
+      <div className="flex flex-col pb-10 lg:max-w-xl lg:mx-auto">
         <Header
           back
           onBack={goBack}
@@ -111,7 +111,7 @@ export function Receive() {
   }
 
   return (
-    <div className="flex flex-col px-5 pb-10 lg:pb-16">
+    <div className="flex flex-col pb-10 lg:pb-16 lg:max-w-xl lg:mx-auto">
       <Header back onBack={goBack} eyebrow="Receive" title="Waiting for payment" />
 
       <div className="flex flex-col gap-5 pt-5">
