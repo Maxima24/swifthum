@@ -4,6 +4,7 @@ import { JwtModule, type JwtModuleOptions, type JwtSignOptions } from '@nestjs/j
 import { UsersModule } from '../users/users.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { InternalSecretGuard } from './internal-secret.guard';
 
 @Module({
   imports: [
@@ -23,7 +24,7 @@ import { AuthService } from './auth.service';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService],
+  providers: [AuthService, InternalSecretGuard],
   exports: [JwtModule],
 })
 export class AuthModule {}

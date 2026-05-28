@@ -51,6 +51,30 @@ export class UsersService {
     return this.prisma.user.findUnique({ where: { telegramId: BigInt(telegramId) } });
   }
 
+  /**
+   * Find or create a user purely by Telegram ID (no first_name/last_name known).
+   * Used by the bot's exchange endpoint — the user may interact via bot before
+   * ever opening the Mini App. Existing users are returned as-is (we do NOT
+   * overwrite a real displayName with a tg_<id> placeholder).
+   */
+  async ensureByTelegramId(
+    telegramId: number,
+    walletSeedMinor: bigint,
+  ): Promise<{ id: string; telegramId: bigint; displayName: string }> {
+    const tgIdBig = BigInt(telegramId);
+    const existing = await this.prisma.user.findUnique({ where: { telegramId: tgIdBig } });
+    if (existing) return existing;
+    const id = prefixedId('u');
+    return this.prisma.user.create({
+      data: {
+        id,
+        telegramId: tgIdBig,
+        displayName: `tg_${telegramId}`,
+        wallet: { create: { balanceMinor: walletSeedMinor, currency: 'NGN' } },
+      },
+    });
+  }
+
   private formatDisplayName(tg: TelegramUser): string {
     if (tg.first_name) {
       return tg.last_name ? `${tg.first_name} ${tg.last_name}` : tg.first_name;

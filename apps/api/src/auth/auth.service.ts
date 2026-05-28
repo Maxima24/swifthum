@@ -38,4 +38,27 @@ export class AuthService {
       },
     };
   }
+
+  /**
+   * Bot → API session exchange. The bot (authenticated via X-Internal-Secret)
+   * passes a `telegramId`; we ensure the user exists (creating + seeding the
+   * wallet on first sight) and return a normal session JWT. The bot caches
+   * this and calls every other endpoint as a standard Bearer-token client.
+   */
+  async exchangeForBot(telegramId: number) {
+    const seed = BigInt(this.config.get<string>('WALLET_SEED_NGN_MINOR', '2500000'));
+    const user = await this.users.ensureByTelegramId(telegramId, seed);
+    const sessionToken = await this.jwt.signAsync({
+      sub: user.id,
+      telegramId: Number(user.telegramId),
+    });
+    return {
+      sessionToken,
+      user: {
+        id: user.id,
+        telegramId: Number(user.telegramId),
+        displayName: user.displayName,
+      },
+    };
+  }
 }
