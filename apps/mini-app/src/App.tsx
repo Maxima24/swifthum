@@ -9,10 +9,11 @@ import { Receive } from './routes/Receive';
 import { TabBar } from './components/TabBar';
 import { Sidebar } from './components/Sidebar';
 import { Shell } from './components/Shell';
+import { AuthGate } from './components/AuthGate';
 
 export function App() {
   return (
-    <>
+    <AuthGate>
       <Sidebar />
       <Shell>
         <Routes>
@@ -28,6 +29,6 @@ export function App() {
         </Routes>
       </Shell>
       <TabBar />
-    </>
+    </AuthGate>
   );
 }

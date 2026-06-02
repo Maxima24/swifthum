@@ -7,7 +7,9 @@
       "Read(//c/c/Users/ADMIN/Documents/swifthum/apps/miniapp/**)",
       "Bash(cloudflared --version)",
       "Bash(where.exe cloudflared *)",
-      "Bash(winget --version)"
+      "Bash(winget --version)",
+      "Bash(rm src/swiftyex/swiftyex.interface.ts src/swiftyex/simulated.client.ts)",
+      "Bash(grep -rl \"swiftyex.interface\\\\|simulated.client\\\\|SimulatedSwiftyexClient\" src)"
     ]
   }
 }

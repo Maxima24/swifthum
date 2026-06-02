@@ -10,6 +10,8 @@ import type {
   RedemptionResult,
   Rule,
   RuleState,
+  SwiftyexAccountStatus,
+  SwiftyexHolding,
   Transaction,
   Wallet,
 } from '../types';
@@ -21,6 +23,10 @@ let executions: Execution[] = [...initialMockExecutions];
 let wallet: Wallet = { balanceMinor: 25_000_00, currency: 'NGN' };
 const intents: Record<string, PaymentIntent & { senderName: string; consumed?: boolean }> = {};
 let transactions: Transaction[] = [];
+
+// In-memory SwiftyEx account state
+let swiftyexAccount: SwiftyexAccountStatus = { linked: false };
+const swiftyexHoldings: SwiftyexHolding[] = [];
 
 const delay = (ms = 200 + Math.random() * 200) => new Promise((r) => setTimeout(r, ms));
 
@@ -173,6 +179,23 @@ export async function mockApi<T>(path: string, init?: RequestInit): Promise<T> {
   if (path.startsWith('/transactions') && method === 'GET') {
     return { items: transactions, nextCursor: null } as T;
   }
+
+  // ─── SwiftyEx account / holdings ─────────────────────────────
+  if (path === '/swiftyex/account' && method === 'GET') return swiftyexAccount as T;
+  if (path === '/swiftyex/link' && method === 'POST') {
+    const key = String(body?.apiKey ?? 'demo');
+    swiftyexAccount = {
+      linked: true,
+      label: `sandbox·${key.slice(0, 4)}…`,
+      linkedAt: new Date().toISOString(),
+    };
+    return swiftyexAccount as T;
+  }
+  if (path === '/swiftyex/link' && method === 'DELETE') {
+    swiftyexAccount = { linked: false };
+    return undefined as T;
+  }
+  if (path === '/swiftyex/holdings' && method === 'GET') return swiftyexHoldings as T;
 
   throw new Error(`Mock route not found: ${method} ${path}`);
 }

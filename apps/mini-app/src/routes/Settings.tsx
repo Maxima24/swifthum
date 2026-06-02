@@ -3,19 +3,31 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { haptic } from '../lib/tg';
 import { useBackButton } from '../hooks/useBackButton';
+import { useSwiftyexAccount, useLinkSwiftyex, useUnlinkSwiftyex } from '../hooks/swiftyex';
 import { Header } from '../components/Header';
 import { Icon } from '../components/Icon';
 
 export function Settings() {
   const navigate = useNavigate();
-  const [linked, setLinked] = useState(false);
+  const { data: account } = useSwiftyexAccount();
+  const linkMutation = useLinkSwiftyex();
+  const unlinkMutation = useUnlinkSwiftyex();
+  const linked = account?.linked ?? false;
+  const pending = linkMutation.isPending || unlinkMutation.isPending;
   const [notifications, setNotifications] = useState(true);
 
   useBackButton(useCallback(() => navigate(-1), [navigate]));
 
   const toggleLink = () => {
+    if (pending) return;
     haptic(linked ? 'error' : 'success');
-    setLinked((v) => !v);
+    if (linked) {
+      unlinkMutation.mutate();
+    } else {
+      // The toggle UX has no key field; the sandbox accepts any credential.
+      // For live mode, add a key-entry step before calling link.
+      linkMutation.mutate('demo-sandbox-key');
+    }
   };
 
   return (
@@ -39,7 +51,7 @@ export function Settings() {
                 <Icon name="link" size={22} />
               </div>
               <div className="flex-1">
-                <p className="font-semibold">{linked ? 'Linked' : 'Not linked'}</p>
+                <p className="font-semibold">{linked ? (account?.label ?? 'Linked') : 'Not linked'}</p>
                 <p className="text-xs text-tg-hint mt-0.5 leading-snug">
                   {linked
                     ? 'Trades will execute on your SwiftyEx account.'
@@ -58,13 +70,14 @@ export function Settings() {
             </div>
             <button
               onClick={toggleLink}
-              className={`w-full rounded-xl py-3 font-semibold active:scale-[0.98] transition-transform ${
+              disabled={pending}
+              className={`w-full rounded-xl py-3 font-semibold active:scale-[0.98] transition-transform disabled:opacity-60 ${
                 linked
                   ? 'bg-red-50 text-red-700'
                   : 'bg-gradient-to-br from-brand-from to-brand-to text-white shadow-md shadow-brand-from/25'
               }`}
             >
-              {linked ? 'Unlink SwiftyEx' : 'Link SwiftyEx account'}
+              {pending ? 'Working…' : linked ? 'Unlink SwiftyEx' : 'Link SwiftyEx account'}
             </button>
           </div>
         </section>
