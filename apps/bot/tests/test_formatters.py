@@ -7,6 +7,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src.services.formatters import (
     format_balance,
     format_notification,
+    format_parse_confirmation,
+    format_parse_unsure,
     format_payment_received,
     format_payment_sent,
     format_rule_fired,
@@ -136,3 +138,33 @@ class TestRules:
     def test_rules_list_numbers_them(self):
         out = format_rules_list([self.rule, self.rule])
         assert "1." in out and "2." in out
+
+
+class TestParse:
+    def test_confirmation_with_recipient(self):
+        out = format_parse_confirmation({
+            "amountMinor": 500_000, "recipient": "Bayo",
+        })
+        assert "Send" in out and "₦5,000.00" in out and "Bayo" in out
+
+    def test_confirmation_without_recipient(self):
+        out = format_parse_confirmation({"amountMinor": 1_000_000, "recipient": None})
+        assert "₦10,000.00" in out and "for" not in out  # no "for X" clause
+
+    def test_confirmation_escapes_recipient_html(self):
+        out = format_parse_confirmation({"amountMinor": 500_000, "recipient": "<b>evil</b>"})
+        assert "<b>evil</b>" not in out
+        assert "&lt;b&gt;evil&lt;/b&gt;" in out
+
+    def test_unsure_default(self):
+        out = format_parse_unsure({"intent": None})
+        assert "didn't catch" in out.lower() and "Abeg" in out
+
+    def test_unsure_uses_explanation(self):
+        out = format_parse_unsure({"explanation": "amount too large"})
+        assert "amount too large" in out
+
+    def test_unsure_escapes_explanation_html(self):
+        out = format_parse_unsure({"explanation": "<script>x</script>"})
+        assert "<script>" not in out
+        assert "&lt;script&gt;" in out

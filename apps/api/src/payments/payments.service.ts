@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { Errors } from '../common/errors';
 import { prefixedId } from '../common/ids';
 import { BotPushService } from '../bot/bot-push.service';
+import { AnthropicService, type ParsePaymentResult } from '../ai/anthropic.service';
 import { hashToken, signToken, verifyToken } from './payment-token';
 
 const TRANSACTIONS_PAGE_DEFAULT = 50;
@@ -19,10 +20,20 @@ export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly botPush: BotPushService,
+    private readonly ai: AnthropicService,
     config: ConfigService,
   ) {
     this.tokenSecret = config.getOrThrow<string>('PAYMENT_TOKEN_SECRET');
     this.intentTtlSec = Number(config.get<string>('PAYMENT_INTENT_TTL_SEC', '30'));
+  }
+
+  /**
+   * Natural-language payment parse. Delegates to AnthropicService which has a
+   * 3s timeout + static fallback, so this always resolves to a ParsePaymentResult.
+   * The bot uses this to turn "Abeg send Bayo 5k" into a confirmation card.
+   */
+  parseText(_userId: string, text: string): Promise<ParsePaymentResult> {
+    return this.ai.parsePayment(text);
   }
 
   /**

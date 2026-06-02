@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Asset } from '../common/assets';
-import { SUGGEST_RULES_SYSTEM_PROMPT } from './prompts';
+import { PARSE_PAYMENT_SYSTEM_PROMPT, SUGGEST_RULES_SYSTEM_PROMPT } from './prompts';
 
 export interface SuggestedRule {
   name: string;
@@ -32,6 +32,17 @@ export interface UserRuleInput {
 }
 
 const SUGGEST_RULES_TIMEOUT_MS = 3000;
+const PARSE_PAYMENT_TIMEOUT_MS = 3000;
+const PARSE_PAYMENT_AMOUNT_MAX_KOBO = 10_000_000; // ₦100,000 — anything larger is treated as a parse error
+
+export interface ParsePaymentResult {
+  intent: 'send' | null;
+  amountMinor: number | null;
+  currency: 'NGN' | null;
+  recipient: string | null;
+  confidence: number;
+  explanation: string | null;
+}
 
 @Injectable()
 export class AnthropicService {
@@ -87,6 +98,101 @@ export class AnthropicService {
       this.logger.warn(`suggestRules failed (${(err as Error).message}); using fallback`);
       return this.fallbackSuggestions();
     }
+  }
+
+  /**
+   * Parse a free-text payment intent like "Abeg send Bayo 5k". Mirrors `suggestRules`:
+   * prompt-cached system block, 3s timeout, static fallback so callers never see throws.
+   * Returns {intent:null} on any failure — the bot turns that into a polite "I didn't
+   * catch that" message. Recipient is display-only (not bound to any user record).
+   */
+  async parsePayment(text: string): Promise<ParsePaymentResult> {
+    const trimmed = (text ?? '').trim();
+    if (!trimmed) return this.fallbackParse('empty');
+    if (!this.client) return this.fallbackParse('no_api_key');
+
+    try {
+      const res = await this.client.messages.create(
+        {
+          model: this.model,
+          max_tokens: 256,
+          system: [
+            {
+              type: 'text',
+              text: PARSE_PAYMENT_SYSTEM_PROMPT,
+              cache_control: { type: 'ephemeral' },
+            },
+          ],
+          messages: [{ role: 'user', content: trimmed }],
+        },
+        { timeout: PARSE_PAYMENT_TIMEOUT_MS },
+      );
+
+      const textBlock = res.content.find((b) => b.type === 'text');
+      const raw = textBlock && 'text' in textBlock ? textBlock.text : '';
+      const parsed = this.parsePaymentJson(raw);
+      return parsed ?? this.fallbackParse('bad_json');
+    } catch (err) {
+      this.logger.warn(`parsePayment failed (${(err as Error).message}); using fallback`);
+      return this.fallbackParse('timeout_or_error');
+    }
+  }
+
+  private parsePaymentJson(text: string): ParsePaymentResult | null {
+    if (!text) return null;
+    const stripped = text
+      .trim()
+      .replace(/^```(?:json)?/i, '')
+      .replace(/```$/, '')
+      .trim();
+    try {
+      const parsed = JSON.parse(stripped) as Record<string, unknown>;
+      return this.normalizeParseResult(parsed);
+    } catch {
+      return null;
+    }
+  }
+
+  private normalizeParseResult(raw: Record<string, unknown>): ParsePaymentResult | null {
+    if (!raw || typeof raw !== 'object') return null;
+    const intent = raw.intent === 'send' ? 'send' : null;
+    const confidence = typeof raw.confidence === 'number' ? Math.max(0, Math.min(1, raw.confidence)) : 0;
+    const recipient = typeof raw.recipient === 'string' && raw.recipient.trim().length > 0 ? raw.recipient.trim().slice(0, 60) : null;
+    const explanation = typeof raw.explanation === 'string' && raw.explanation.trim().length > 0 ? raw.explanation.trim().slice(0, 200) : null;
+
+    let amountMinor: number | null = null;
+    if (intent === 'send' && typeof raw.amountMinor === 'number' && Number.isFinite(raw.amountMinor)) {
+      const candidate = Math.round(raw.amountMinor);
+      if (candidate > 0 && candidate <= PARSE_PAYMENT_AMOUNT_MAX_KOBO) {
+        amountMinor = candidate;
+      } else {
+        // The model said "send" but proposed an out-of-bounds amount — treat as non-parse.
+        return {
+          intent: null,
+          amountMinor: null,
+          currency: null,
+          recipient,
+          confidence: Math.min(confidence, 0.3),
+          explanation: candidate > PARSE_PAYMENT_AMOUNT_MAX_KOBO
+            ? 'amount too large'
+            : (explanation ?? 'amount invalid'),
+        };
+      }
+    }
+
+    const currency: 'NGN' | null = intent === 'send' && amountMinor !== null ? 'NGN' : null;
+    return { intent, amountMinor, currency, recipient, confidence, explanation };
+  }
+
+  private fallbackParse(reason: string): ParsePaymentResult {
+    return {
+      intent: null,
+      amountMinor: null,
+      currency: null,
+      recipient: null,
+      confidence: 0,
+      explanation: `couldn't parse (${reason})`,
+    };
   }
 
   private parseSuggestionsJson(text: string): SuggestedRule[] | null {
