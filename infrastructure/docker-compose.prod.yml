@@ -1,0 +1,151 @@
+# SwiftHum production stack — single VPS, single internal network, Cloudflare in front.
+# Only `edge` publishes a port to the host. Everything else is internal-only.
+#
+# Deploy:
+#   cd <repo root>
+#   docker compose -f infrastructure/docker-compose.prod.yml \
+#                  --env-file infrastructure/prod/.env \
+#                  up -d --build
+#
+# Update:   git pull && docker compose -f infrastructure/docker-compose.prod.yml up -d --build
+# Logs:     docker compose -f infrastructure/docker-compose.prod.yml logs -f api worker bot
+# Migrate:  the `migrate` service runs `prisma migrate deploy` on every `up`.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: swifthum-postgres-prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-swifthum}
+      POSTGRES_USER: ${POSTGRES_USER:-swifthum}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [swifthum_net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-swifthum} -d ${POSTGRES_DB:-swifthum}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    container_name: swifthum-redis-prod
+    restart: unless-stopped
+    # appendonly = persist BullMQ queue + scheduled jobs across restarts
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    networks: [swifthum_net]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  # One-shot: applies Prisma migrations, then exits. api/worker depend on this
+  # completing successfully — every deploy reruns it idempotently.
+  migrate:
+    image: swifthum/api:local
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    command: ["./node_modules/.bin/prisma", "migrate", "deploy"]
+    env_file: ./prod/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [swifthum_net]
+    restart: "no"
+
+  api:
+    image: swifthum/api:local
+    container_name: swifthum-api
+    command: ["node", "dist/main.js"]
+    env_file: ./prod/.env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    networks: [swifthum_net]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 15s
+
+  worker:
+    image: swifthum/api:local
+    container_name: swifthum-worker
+    command: ["node", "dist/worker/main.js"]
+    env_file: ./prod/.env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    networks: [swifthum_net]
+    restart: unless-stopped
+
+  bot:
+    image: swifthum/bot:local
+    build:
+      context: ..
+      dockerfile: apps/bot/Dockerfile
+    container_name: swifthum-bot
+    env_file: ./prod/.env
+    depends_on:
+      api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [swifthum_net]
+    restart: unless-stopped
+
+  miniapp:
+    image: swifthum/miniapp:local
+    build:
+      context: ..
+      dockerfile: apps/mini-app/Dockerfile
+    container_name: swifthum-miniapp
+    networks: [swifthum_net]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost/healthz"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  edge:
+    image: nginx:1.27-alpine
+    container_name: swifthum-edge
+    restart: unless-stopped
+    # The only published port. Cloudflare proxies to this; ufw locks port 80 to
+    # Cloudflare's IP ranges only (see infrastructure/prod/README.md).
+    ports:
+      - "80:80"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/snippets:/etc/nginx/snippets:ro
+      - ./nginx/templates:/etc/nginx/templates:ro
+    depends_on:
+      - api
+      - miniapp
+    networks: [swifthum_net]
+
+networks:
+  swifthum_net:
+    name: swifthum_net
+    driver: bridge
+
+volumes:
+  postgres_data:
+    name: swifthum_postgres_data
+  redis_data:
+    name: swifthum_redis_data

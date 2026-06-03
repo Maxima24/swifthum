@@ -1,3 +1,7 @@
+# DEV compose — Postgres + Redis only, for running api/bot/miniapp on the host
+# via pnpm/python directly. For production use docker-compose.prod.yml instead,
+# which orchestrates all 8 services (api, worker, bot, miniapp, edge nginx, plus
+# postgres + redis) on a single internal network behind Cloudflare.
 services:
   postgres:
     image: postgres:16-alpine
