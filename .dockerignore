@@ -1,0 +1,44 @@
+# Root .dockerignore — applied to every build whose context is the repo root
+# (api, bot, miniapp). The per-app .dockerignore files next to each Dockerfile
+# are NOT consulted when the build context is the repo root — Docker only reads
+# the .dockerignore at the context root. So this is the one that actually matters.
+
+# Node / pnpm
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/coverage
+**/*.tsbuildinfo
+
+# Python
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/*.pyc
+**/*.pyo
+**/.venv
+**/venv
+
+# Env (never copy real secrets into images; .env.example is fine to keep — explicit allow)
+**/.env
+**/.env.*
+!**/.env.example
+
+# Local infra state
+infrastructure/prod/.env
+
+# VCS / IDE / OS junk
+.git
+.gitignore
+.github
+.idea
+.vscode
+**/.DS_Store
+**/*.log
+**/.claude
+
+# Plans and developer notes (no need to ship to images)
+plans/
+**/*.md.bak

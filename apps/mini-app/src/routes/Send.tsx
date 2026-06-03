@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useCreateIntent, useWallet } from '../hooks/payments';
 import { useBackButton } from '../hooks/useBackButton';
@@ -15,12 +15,25 @@ import type { PaymentIntent } from '../types';
 type Stage = 'amount' | 'broadcast' | 'done';
 type Mode = 'sound' | 'qr';
 
+/**
+ * Lazy initial amount from `?amount=<kobo>` query param (used by the bot's NL
+ * parse deep link). Falls back to '5000' for any malformed/out-of-range input.
+ */
+function initialAmountFromQuery(searchParams: URLSearchParams): string {
+  const raw = searchParams.get('amount');
+  if (!raw) return '5000';
+  const minor = Number(raw);
+  if (!Number.isInteger(minor) || minor <= 0 || minor > 100_000_00) return '5000';
+  return String(minor / 100);
+}
+
 export function Send() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { data: wallet } = useWallet();
   const create = useCreateIntent();
   const [stage, setStage] = useState<Stage>('amount');
-  const [amountNgn, setAmountNgn] = useState<string>('5000');
+  const [amountNgn, setAmountNgn] = useState<string>(() => initialAmountFromQuery(searchParams));
   const [mode, setMode] = useState<Mode>('sound');
   const [intent, setIntent] = useState<PaymentIntent | null>(null);
   const [soundReady, setSoundReady] = useState(false);

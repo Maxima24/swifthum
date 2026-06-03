@@ -1,9 +1,16 @@
-import { IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
+import { IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
 
 export class CreateIntentDto {
   @IsInt()
   @Min(1)
   amountMinor!: number;
+}
+
+export class ParsePaymentDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(280)
+  text!: string;
 }
 
 export class RedeemDto {

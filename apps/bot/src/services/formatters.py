@@ -99,3 +99,30 @@ def format_rules_list(rules: list[dict[str, Any]]) -> str:
         return "You have no rules yet. Open the Mini App to create one."
     lines = [format_rule_line(i + 1, r) for i, r in enumerate(rules)]
     return "<b>Your rules</b>\n" + "\n".join(lines)
+
+
+# ─── natural-language payment parse ────────────────────────────────
+
+def format_parse_confirmation(result: dict[str, Any]) -> str:
+    """Confirmation card for a successful parse. amountMinor is required;
+    recipient is display-only sugar."""
+    amount = kobo_to_naira_str(int(result["amountMinor"]))
+    recipient_raw = result.get("recipient")
+    recipient = escape(str(recipient_raw).strip()) if recipient_raw else ""
+    if recipient:
+        return f"\U0001f4b8 Send <b>{amount}</b> for <b>{recipient}</b>?"
+    return f"\U0001f4b8 Send <b>{amount}</b>?"
+
+
+def format_parse_unsure(result: dict[str, Any]) -> str:
+    """Reply when the parser returns intent:null or low confidence. Escapes the
+    model-provided explanation so it can't break the layout."""
+    explanation = result.get("explanation")
+    if explanation and str(explanation).strip():
+        line = escape(str(explanation).strip())
+    else:
+        line = "I didn't catch a payment in that."
+    return (
+        f"\U0001f914 {line}\n\n"
+        "Try: <i>Abeg send 5k</i> or <i>Send 10,000 to Bayo</i>"
+    )
