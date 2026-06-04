@@ -48,6 +48,11 @@ export interface PriceMap {
 export interface Wallet {
   balanceMinor: number;
   currency: 'NGN';
+  notificationsEnabled?: boolean;
+}
+
+export interface UserPreferences {
+  notificationsEnabled: boolean;
 }
 
 export interface PaymentIntent {

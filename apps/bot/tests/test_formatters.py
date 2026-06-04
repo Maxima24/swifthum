@@ -14,8 +14,10 @@ from src.services.formatters import (
     format_rule_fired,
     format_rule_line,
     format_rules_list,
+    format_weekly_digest,
 )
 from src.services.money import kobo_to_naira_str
+from src.services.transcribe import Transcriber
 
 
 class TestMoney:
@@ -116,6 +118,49 @@ class TestDispatch:
 
     def test_unknown_type_returns_none(self):
         assert format_notification({"type": "no_such_type", "data": {}}) is None
+
+    def test_weekly_digest(self):
+        out = format_notification({"type": "weekly_digest", "data": {
+            "rulesFiredCount": 3, "transactionsCount": 2,
+            "digestSummary": "Busy week!",
+        }})
+        assert out and "3" in out and "2" in out and "Busy week!" in out
+
+
+class TestWeeklyDigest:
+    def test_includes_counts_and_summary(self):
+        out = format_weekly_digest({
+            "rulesFiredCount": 5, "transactionsCount": 1, "digestSummary": "Nice run",
+        })
+        assert "5" in out and "1" in out and "Nice run" in out
+
+    def test_omits_blank_summary(self):
+        out = format_weekly_digest({
+            "rulesFiredCount": 0, "transactionsCount": 0, "digestSummary": "",
+        })
+        assert "Rules fired" in out and out.strip().endswith("</b>")
+
+    def test_escapes_summary_html(self):
+        out = format_weekly_digest({
+            "rulesFiredCount": 0, "transactionsCount": 0,
+            "digestSummary": "<b>x</b>",
+        })
+        assert "<b>x</b>" not in out
+        assert "&lt;b&gt;x&lt;/b&gt;" in out
+
+
+class TestTranscriber:
+    def test_disabled_without_key(self):
+        t = Transcriber("", "whisper-large-v3-turbo")
+        assert t.enabled is False
+
+    async def _transcribe(self, t):
+        return await t.transcribe(b"")
+
+    def test_disabled_transcribe_returns_none(self):
+        import asyncio
+        t = Transcriber("", "whisper-large-v3-turbo")
+        assert asyncio.run(t.transcribe(b"some-bytes")) is None
 
 
 class TestRules:

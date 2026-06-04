@@ -9,7 +9,6 @@ export class WalletsController {
 
   @Get('me')
   async getMine(@CurrentUser() user: JwtPayload) {
-    const w = await this.wallets.getForUser(user.sub);
-    return { balanceMinor: w.balanceMinor, currency: w.currency };
+    return this.wallets.getMineWithPrefs(user.sub);
   }
 }

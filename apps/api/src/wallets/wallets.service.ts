@@ -11,4 +11,21 @@ export class WalletsService {
     if (!wallet) throw Errors.notFound('wallet not found');
     return wallet;
   }
+
+  /**
+   * Wallet plus the user-facing preferences the Mini App reads on load
+   * (the notifications opt-out lives on User, not Wallet).
+   */
+  async getMineWithPrefs(userId: string) {
+    const wallet = await this.prisma.wallet.findUnique({
+      where: { userId },
+      include: { user: { select: { notificationsEnabled: true } } },
+    });
+    if (!wallet) throw Errors.notFound('wallet not found');
+    return {
+      balanceMinor: wallet.balanceMinor,
+      currency: wallet.currency,
+      notificationsEnabled: wallet.user.notificationsEnabled,
+    };
+  }
 }

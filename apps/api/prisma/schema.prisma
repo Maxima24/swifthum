@@ -11,10 +11,11 @@ datasource db {
 }
 
 model User {
-  id            String           @id
-  telegramId    BigInt           @unique
-  displayName   String
-  createdAt     DateTime         @default(now())
+  id                   String           @id
+  telegramId           BigInt           @unique
+  displayName          String
+  notificationsEnabled Boolean          @default(true)
+  createdAt            DateTime         @default(now())
 
   wallet         Wallet?
   rules          Rule[]

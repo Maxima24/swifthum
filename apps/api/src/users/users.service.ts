@@ -47,6 +47,26 @@ export class UsersService {
     return this.prisma.user.findUnique({ where: { id } });
   }
 
+  /**
+   * Update mutable user preferences (currently just the notifications opt-out).
+   * Returns the fields the Mini App cares about.
+   */
+  async updatePreferences(
+    userId: string,
+    prefs: { notificationsEnabled?: boolean },
+  ): Promise<{ notificationsEnabled: boolean }> {
+    const data: { notificationsEnabled?: boolean } = {};
+    if (prefs.notificationsEnabled !== undefined) {
+      data.notificationsEnabled = prefs.notificationsEnabled;
+    }
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data,
+      select: { notificationsEnabled: true },
+    });
+    return user;
+  }
+
   async findByTelegramId(telegramId: number) {
     return this.prisma.user.findUnique({ where: { telegramId: BigInt(telegramId) } });
   }

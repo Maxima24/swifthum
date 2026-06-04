@@ -2,7 +2,12 @@ import Anthropic from '@anthropic-ai/sdk';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Asset } from '../common/assets';
-import { PARSE_PAYMENT_SYSTEM_PROMPT, SUGGEST_RULES_SYSTEM_PROMPT } from './prompts';
+import {
+  DIGEST_SUMMARY_SYSTEM_PROMPT,
+  FRAUD_SCORE_SYSTEM_PROMPT,
+  PARSE_PAYMENT_SYSTEM_PROMPT,
+  SUGGEST_RULES_SYSTEM_PROMPT,
+} from './prompts';
 
 export interface SuggestedRule {
   name: string;
@@ -33,7 +38,10 @@ export interface UserRuleInput {
 
 const SUGGEST_RULES_TIMEOUT_MS = 3000;
 const PARSE_PAYMENT_TIMEOUT_MS = 3000;
+const FRAUD_SCORE_TIMEOUT_MS = 3000;
+const DIGEST_SUMMARY_TIMEOUT_MS = 3000;
 const PARSE_PAYMENT_AMOUNT_MAX_KOBO = 10_000_000; // ₦100,000 — anything larger is treated as a parse error
+const FRAUD_SCORE_FALLBACK = 0.1; // matches the PaymentIntent.riskScore column default
 
 export interface ParsePaymentResult {
   intent: 'send' | null;
@@ -42,6 +50,27 @@ export interface ParsePaymentResult {
   recipient: string | null;
   confidence: number;
   explanation: string | null;
+}
+
+export interface FraudScoreInput {
+  amountMinor: number;
+  walletBalanceMinor: number;
+  weeklySentMinor: number;
+  weeklySentCount: number;
+}
+
+export interface FraudScoreResult {
+  score: number;
+  reasoning: string;
+}
+
+export interface DigestSummaryInput {
+  userName: string;
+  rulesFired: number;
+  transactions: number;
+  netSentMinor: number;
+  netReceivedMinor: number;
+  topAsset?: string | null;
 }
 
 @Injectable()
@@ -135,6 +164,95 @@ export class AnthropicService {
     } catch (err) {
       this.logger.warn(`parsePayment failed (${(err as Error).message}); using fallback`);
       return this.fallbackParse('timeout_or_error');
+    }
+  }
+
+  /**
+   * Score the fraud risk of an outgoing payment (0..1). Mirrors the other AI
+   * methods: prompt-cached system block, short timeout, and a safe fallback to
+   * {@link FRAUD_SCORE_FALLBACK} on no-key / timeout / bad JSON. The score is
+   * informational (stored on PaymentIntent.riskScore, surfaced to the Mini App),
+   * so a fallback never blocks a payment.
+   */
+  async scoreFraud(args: FraudScoreInput): Promise<FraudScoreResult> {
+    if (!this.client) return { score: FRAUD_SCORE_FALLBACK, reasoning: 'no_api_key' };
+
+    try {
+      const res = await this.client.messages.create(
+        {
+          model: this.model,
+          max_tokens: 128,
+          system: [
+            {
+              type: 'text',
+              text: FRAUD_SCORE_SYSTEM_PROMPT,
+              cache_control: { type: 'ephemeral' },
+            },
+          ],
+          messages: [{ role: 'user', content: JSON.stringify(args) }],
+        },
+        { timeout: FRAUD_SCORE_TIMEOUT_MS },
+      );
+
+      const textBlock = res.content.find((b) => b.type === 'text');
+      const raw = textBlock && 'text' in textBlock ? textBlock.text : '';
+      const parsed = this.parseFraudScoreJson(raw);
+      return parsed ?? { score: FRAUD_SCORE_FALLBACK, reasoning: 'bad_json' };
+    } catch (err) {
+      this.logger.warn(`scoreFraud failed (${(err as Error).message}); using fallback`);
+      return { score: FRAUD_SCORE_FALLBACK, reasoning: 'timeout_or_error' };
+    }
+  }
+
+  /**
+   * One-sentence weekly insight for the digest DM. Returns '' on any failure so
+   * the worker can fall back to a static summary line.
+   */
+  async digestSummary(args: DigestSummaryInput): Promise<string> {
+    if (!this.client) return '';
+
+    try {
+      const res = await this.client.messages.create(
+        {
+          model: this.model,
+          max_tokens: 80,
+          system: [
+            {
+              type: 'text',
+              text: DIGEST_SUMMARY_SYSTEM_PROMPT,
+              cache_control: { type: 'ephemeral' },
+            },
+          ],
+          messages: [{ role: 'user', content: JSON.stringify(args) }],
+        },
+        { timeout: DIGEST_SUMMARY_TIMEOUT_MS },
+      );
+
+      const textBlock = res.content.find((b) => b.type === 'text');
+      const text = textBlock && 'text' in textBlock ? textBlock.text : '';
+      return text.trim().slice(0, 200);
+    } catch (err) {
+      this.logger.warn(`digestSummary failed (${(err as Error).message})`);
+      return '';
+    }
+  }
+
+  private parseFraudScoreJson(text: string): FraudScoreResult | null {
+    if (!text) return null;
+    const stripped = text
+      .trim()
+      .replace(/^```(?:json)?/i, '')
+      .replace(/```$/, '')
+      .trim();
+    try {
+      const parsed = JSON.parse(stripped) as Record<string, unknown>;
+      if (typeof parsed.score !== 'number' || !Number.isFinite(parsed.score)) return null;
+      const score = Math.max(0, Math.min(1, parsed.score));
+      const reasoning =
+        typeof parsed.reasoning === 'string' ? parsed.reasoning.trim().slice(0, 120) : '';
+      return { score, reasoning };
+    } catch {
+      return null;
     }
   }
 

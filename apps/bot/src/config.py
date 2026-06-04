@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     internal_api_secret: str = Field(..., alias="INTERNAL_API_SECRET", min_length=16)
     log_level: str = Field("INFO", alias="LOG_LEVEL")
 
+    # Speech-to-text for voice-note payments. Optional: when GROQ_API_KEY is empty
+    # the voice handler degrades to a friendly "type it instead" hint.
+    groq_api_key: str = Field("", alias="GROQ_API_KEY")
+    groq_model: str = Field("whisper-large-v3-turbo", alias="GROQ_MODEL")
+
 
 def load() -> Settings:
     """Load + validate settings. Raises pydantic.ValidationError on missing required fields."""

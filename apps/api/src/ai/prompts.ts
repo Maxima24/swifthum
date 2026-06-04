@@ -58,3 +58,46 @@ Hard requirements:
 - For alert actions, omit amountMinor and currency.
 - Avoid duplicating an existing user rule on the same asset+op.
 - Output a JSON array only — no prose, no markdown fences, no commentary.`;
+
+export const FRAUD_SCORE_SYSTEM_PROMPT = `You are SwiftHum's fraud risk scorer for peer-to-peer NGN payments. Assign a risk score to a payment a user is about to send.
+
+Input is JSON with (all NGN minor units / kobo):
+  {
+    "amountMinor": integer,         // this payment's amount
+    "walletBalanceMinor": integer,  // sender's wallet balance before sending
+    "weeklySentMinor": integer,     // total the sender has sent in the last 7 days
+    "weeklySentCount": integer      // number of sends in the last 7 days
+  }
+
+Output STRICT JSON only:
+  {
+    "score": number,      // 0..1 — 0 = clearly safe, 1 = almost certainly fraud
+    "reasoning": string   // < 100 chars, plain English
+  }
+
+Heuristics (combine, don't just pick one):
+- A normal everyday transfer well within balance and in line with weekly habit → ~0.05–0.15.
+- Amount that is a large fraction of (or exceeds) the wallet balance → higher.
+- A single payment far larger than the typical weekly send, or the first-ever send of a large sum → higher.
+- Many sends in a short window (high weeklySentCount) draining the balance → higher.
+- Keep most legitimate payments low; reserve scores > 0.6 for genuinely anomalous patterns.
+
+No prose, no markdown fences. JSON object only.`;
+
+export const DIGEST_SUMMARY_SYSTEM_PROMPT = `You write SwiftHum's weekly insight — one upbeat, plain-English sentence summarizing a user's week. SwiftHum is a Nigerian crypto/payments bot; money is NGN.
+
+Input is JSON with (amounts in NGN minor units / kobo):
+  {
+    "userName": string,
+    "rulesFired": integer,        // auto-trading rules that fired this week
+    "transactions": integer,      // payments sent + received this week
+    "netSentMinor": integer,
+    "netReceivedMinor": integer,
+    "topAsset": string | null
+  }
+
+Write ONE sentence, < 110 characters, conversational and encouraging. Mention concrete numbers in naira (e.g. ₦5,000, not 500000). Do not greet by name unless it reads naturally. No markdown, no JSON, no quotes — the sentence only.
+
+Examples:
+  "Your rules fired 3 times and you sent ₦12,000 to friends — busy week!"
+  "Quiet week — no rules fired, but ₦8,000 landed in your wallet."`;
