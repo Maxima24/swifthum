@@ -1,0 +1,87 @@
+name: Deploy to EC2
+
+# On every push to master (or a manual trigger), SSH into the single EC2 box,
+# sync the repo to origin/master, and rebuild + restart the Docker Compose stack
+# (the on-VPS build model from infrastructure/prod/README.md). The `migrate`
+# service applies Prisma migrations as part of `up`.
+#
+# Required GitHub repo secrets (Settings → Secrets and variables → Actions):
+#   EC2_HOST      public IP or hostname of the box   (e.g. 13.63.253.137)
+#   EC2_USER      SSH user                            (e.g. ubuntu)
+#   EC2_PASSWORD  SSH password for that user
+# Optional:
+#   EC2_PORT      SSH port                            (default 22)
+#   EC2_APP_DIR   absolute path to the repo on the box (default $HOME/swifthum)
+#
+# NOTE: the box's sshd must allow password auth (PasswordAuthentication yes).
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+# Never let two deploys run at once; queue rather than cancel a build in flight.
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Build & deploy on EC2
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          password: ${{ secrets.EC2_PASSWORD }}
+          port: ${{ secrets.EC2_PORT || 22 }}
+          command_timeout: 40m
+          script: |
+            set -euo pipefail
+
+            APP_DIR="${{ secrets.EC2_APP_DIR }}"
+            APP_DIR="${APP_DIR:-$HOME/swifthum}"
+            cd "$APP_DIR"
+
+            COMPOSE="docker compose -f infrastructure/docker-compose.prod.yml --env-file infrastructure/prod/.env"
+
+            # On any failure, dump status + recent logs so the Actions log is useful.
+            trap 'echo "::error::deploy failed"; $COMPOSE ps || true; $COMPOSE logs --tail=80 migrate api worker bot || true; exit 1' ERR
+
+            echo "▶ Syncing $APP_DIR to origin/master"
+            git fetch --prune origin
+            git reset --hard origin/master
+            echo "  now at $(git rev-parse --short HEAD) — $(git log -1 --pretty=%s)"
+
+            echo "▶ Building images + (re)starting the stack"
+            $COMPOSE up -d --build --remove-orphans
+
+            echo "▶ Migration output (one-shot 'migrate' service)"
+            $COMPOSE logs --tail=20 migrate || true
+
+            echo "▶ Waiting for the API container to report healthy"
+            state="starting"
+            for _ in $(seq 1 40); do
+              state="$(docker inspect -f '{{.State.Health.Status}}' swifthum-api 2>/dev/null || echo missing)"
+              echo "  swifthum-api: $state"
+              if [ "$state" = "healthy" ]; then break; fi
+              sleep 3
+            done
+            if [ "$state" != "healthy" ]; then
+              echo "::error::API did not become healthy"
+              $COMPOSE logs --tail=80 api migrate
+              exit 1
+            fi
+
+            echo "▶ Container status"
+            $COMPOSE ps
+
+            echo "▶ Pruning dangling images"
+            docker image prune -f
+
+            echo "✅ Deploy complete"
