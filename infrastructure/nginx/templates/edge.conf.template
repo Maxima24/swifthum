@@ -6,7 +6,7 @@
 server {
     listen 80;
     listen [::]:80;
-    server_name ${DOMAIN};
+    server_name swifthum.${DOMAIN};
 
     include /etc/nginx/snippets/cloudflare-real-ip.conf;
 
@@ -26,7 +26,7 @@ server {
 server {
     listen 80;
     listen [::]:80;
-    server_name api.${DOMAIN};
+    server_name swifthum-api.${DOMAIN};
 
     include /etc/nginx/snippets/cloudflare-real-ip.conf;
 

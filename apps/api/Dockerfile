@@ -9,8 +9,11 @@
 
 # ─── Builder ─────────────────────────────────────────────────────────────
 FROM node:22-alpine AS builder
-
 WORKDIR /app
+
+# openssl + libc6-compat so Prisma's engine binary loads correctly on Alpine/musl.
+RUN apk add --no-cache openssl libc6-compat
+
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 
 # Copy lockfile-relevant files first so source changes don't bust the deps layer.
@@ -23,7 +26,6 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
 
 # Source + Prisma schema (changes here re-trigger only the build, not deps install).
 COPY apps/api ./apps/api
-
 RUN pnpm --filter api prisma:generate \
  && pnpm --filter api build
 
@@ -32,19 +34,17 @@ RUN pnpm --filter api prisma:generate \
 # --prod=false keeps the `prisma` CLI in devDeps so the migrate container can run it.
 RUN pnpm deploy --filter api --prod=false /deploy
 
-
 # ─── Runtime ─────────────────────────────────────────────────────────────
 FROM node:22-alpine AS runtime
 
 # tini for proper PID 1 signal handling (clean SIGTERM → SIGINT to Node).
-RUN apk add --no-cache tini wget \
+# openssl + libc6-compat so Prisma's engine loads at `migrate deploy` time.
+RUN apk add --no-cache tini wget openssl libc6-compat \
  && addgroup -S app && adduser -S app -G app
 
 WORKDIR /app
 COPY --from=builder --chown=app:app /deploy /app
-
 USER app
 EXPOSE 3000
-
 ENTRYPOINT ["/sbin/tini","--"]
 # CMD intentionally omitted — set per-service in docker-compose.prod.yml.
