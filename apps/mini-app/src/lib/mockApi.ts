@@ -20,7 +20,7 @@ let rules: Rule[] = [...initialMockRules];
 let executions: Execution[] = [...initialMockExecutions];
 
 // In-memory payment state
-let wallet: Wallet = { balanceMinor: 25_000_00, currency: 'NGN' };
+let wallet: Wallet = { balanceMinor: 25_000_00, currency: 'NGN', notificationsEnabled: true };
 const intents: Record<string, PaymentIntent & { senderName: string; consumed?: boolean }> = {};
 let transactions: Transaction[] = [];
 
@@ -116,6 +116,14 @@ export async function mockApi<T>(path: string, init?: RequestInit): Promise<T> {
 
   // ─── Wallet ──────────────────────────────────────────────────
   if (path === '/wallets/me' && method === 'GET') return wallet as T;
+
+  // ─── User preferences ────────────────────────────────────────
+  if (path === '/users/me' && method === 'PATCH') {
+    if (typeof body?.notificationsEnabled === 'boolean') {
+      wallet = { ...wallet, notificationsEnabled: body.notificationsEnabled };
+    }
+    return { notificationsEnabled: wallet.notificationsEnabled ?? true } as T;
+  }
 
   // ─── Payment intents (sender) ────────────────────────────────
   if (path === '/intents' && method === 'POST') {

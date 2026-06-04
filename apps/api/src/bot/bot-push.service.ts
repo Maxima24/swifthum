@@ -22,6 +22,15 @@ export type NotificationPayload =
       telegramId: number;
       type: 'payment_received' | 'payment_sent';
       data: { amountMinor: number; counterpartyName: string };
+    }
+  | {
+      telegramId: number;
+      type: 'weekly_digest';
+      data: {
+        rulesFiredCount: number;
+        transactionsCount: number;
+        digestSummary: string;
+      };
     };
 
 /**

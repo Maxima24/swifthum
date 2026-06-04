@@ -1,11 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
-import type { PaymentIntent, RedemptionResult, Wallet } from '../types';
+import type { PaymentIntent, RedemptionResult, UserPreferences, Wallet } from '../types';
 
 export function useWallet() {
   return useQuery({
     queryKey: ['wallet'],
     queryFn: () => api<Wallet>('/wallets/me'),
+  });
+}
+
+export function useUpdatePreferences() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (prefs: Partial<UserPreferences>) =>
+      api<UserPreferences>('/users/me', {
+        method: 'PATCH',
+        body: JSON.stringify(prefs),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['wallet'] }),
   });
 }
 

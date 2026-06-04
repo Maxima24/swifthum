@@ -6,6 +6,7 @@ import { RulesService } from '../rules/rules.service';
 import { SwiftyexService } from '../swiftyex/swiftyex.service';
 import { PaymentsService } from '../payments/payments.service';
 import { BotPushService } from '../bot/bot-push.service';
+import { AnthropicService } from '../ai/anthropic.service';
 import { evaluate } from '../rules/rule-evaluator';
 import { prefixedId } from '../common/ids';
 import { type Asset } from '../common/assets';
@@ -40,6 +41,7 @@ export class WatcherProcessor {
     private readonly swiftyex: SwiftyexService,
     private readonly payments: PaymentsService,
     private readonly botPush: BotPushService,
+    private readonly ai: AnthropicService,
     private readonly _config: ConfigService,
   ) {}
 
@@ -147,7 +149,7 @@ export class WatcherProcessor {
       }),
     ]);
 
-    if (user) {
+    if (user && user.notificationsEnabled) {
       await this.botPush.publish({
         telegramId: Number(user.telegramId),
         type: 'rule_fired',
@@ -163,6 +165,91 @@ export class WatcherProcessor {
       });
     }
   }
+
+  /**
+   * Weekly insights digest. For each user who hasn't muted notifications and had
+   * activity in the last 7 days, compute a small summary, ask the AI for a
+   * one-liner (with a static fallback), and DM it via the bot. Idle users are
+   * skipped so nobody gets an empty "0 / 0" message.
+   */
+  async digest(): Promise<void> {
+    const started = Date.now();
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    const users = await this.prisma.user.findMany({
+      where: { notificationsEnabled: true },
+      select: { id: true, telegramId: true, displayName: true },
+    });
+
+    let sent = 0;
+    for (const user of users) {
+      try {
+        const [rulesFiredCount, txns] = await Promise.all([
+          this.prisma.ruleExecution.count({
+            where: { rule: { userId: user.id }, firedAt: { gte: since } },
+          }),
+          this.prisma.transaction.findMany({
+            where: { userId: user.id, settledAt: { gte: since } },
+            select: { direction: true, amountMinor: true },
+          }),
+        ]);
+
+        const transactionsCount = txns.length;
+        if (rulesFiredCount === 0 && transactionsCount === 0) continue; // skip idle users
+
+        const netSentMinor = sumWhere(txns, 'sent');
+        const netReceivedMinor = sumWhere(txns, 'received');
+
+        const aiLine = await this.ai.digestSummary({
+          userName: user.displayName,
+          rulesFired: rulesFiredCount,
+          transactions: transactionsCount,
+          netSentMinor,
+          netReceivedMinor,
+        });
+        const digestSummary =
+          aiLine ||
+          staticDigestLine(rulesFiredCount, transactionsCount, netSentMinor, netReceivedMinor);
+
+        await this.botPush.publish({
+          telegramId: Number(user.telegramId),
+          type: 'weekly_digest',
+          data: { rulesFiredCount, transactionsCount, digestSummary },
+        });
+        sent++;
+      } catch (err) {
+        this.logger.warn(`digest failed for user ${user.id}: ${(err as Error).message}`);
+      }
+    }
+
+    this.logger.log(
+      `weekly digest done in ${Date.now() - started}ms (users=${users.length} sent=${sent})`,
+    );
+  }
+}
+
+function sumWhere(
+  txns: { direction: string; amountMinor: bigint }[],
+  direction: 'sent' | 'received',
+): number {
+  return txns
+    .filter((t) => t.direction === direction)
+    .reduce((acc, t) => acc + Number(t.amountMinor), 0);
+}
+
+/** Deterministic one-liner used when the AI summary is unavailable. */
+function staticDigestLine(
+  rulesFired: number,
+  transactions: number,
+  netSentMinor: number,
+  netReceivedMinor: number,
+): string {
+  const parts: string[] = [];
+  if (rulesFired > 0) parts.push(`${rulesFired} rule${rulesFired === 1 ? '' : 's'} fired`);
+  if (netSentMinor > 0) parts.push(`sent ₦${formatMinor(BigInt(netSentMinor))}`);
+  if (netReceivedMinor > 0) parts.push(`received ₦${formatMinor(BigInt(netReceivedMinor))}`);
+  if (parts.length === 0) return `${transactions} transaction${transactions === 1 ? '' : 's'} this week.`;
+  return `This week you ${parts.join(', ')}.`;
 }
 
 function absDrift(a: bigint, b: bigint): bigint {

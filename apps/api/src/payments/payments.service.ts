@@ -54,6 +54,11 @@ export class PaymentsService {
     );
     const tokenHashValue = hashToken(token);
 
+    // Score fraud risk BEFORE opening the transaction so the (up to 3s) AI call
+    // never holds the wallet row lock. scoreFraud has its own timeout + fallback,
+    // so this resolves quickly and never throws.
+    const riskScore = await this.computeRiskScore(userId, amountMinor);
+
     return this.prisma.$transaction(
       async (tx) => {
         await tx.$executeRaw`SELECT 1 FROM "Wallet" WHERE "userId" = ${userId} FOR UPDATE`;
@@ -75,7 +80,7 @@ export class PaymentsService {
             currency: 'NGN',
             tokenHash: tokenHashValue,
             expiresAt,
-            riskScore: 0.1,
+            riskScore,
           },
         });
 
@@ -85,11 +90,40 @@ export class PaymentsService {
           amountMinor,
           currency: 'NGN' as const,
           expiresAt: expiresAt.toISOString(),
-          riskScore: 0.1,
+          riskScore,
         };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+  }
+
+  /**
+   * Gather lightweight sender context (balance + this week's send activity) and
+   * ask the AI for a 0..1 fraud score. Non-locking reads — purely informational.
+   * Falls back to the column default (0.1) if anything is missing.
+   */
+  private async computeRiskScore(userId: string, amountMinor: number): Promise<number> {
+    try {
+      const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const [wallet, weekly] = await Promise.all([
+        this.prisma.wallet.findUnique({ where: { userId } }),
+        this.prisma.transaction.aggregate({
+          where: { userId, direction: 'sent', settledAt: { gte: since } },
+          _sum: { amountMinor: true },
+          _count: true,
+        }),
+      ]);
+      const { score } = await this.ai.scoreFraud({
+        amountMinor,
+        walletBalanceMinor: Number(wallet?.balanceMinor ?? 0n),
+        weeklySentMinor: Number(weekly._sum.amountMinor ?? 0n),
+        weeklySentCount: weekly._count,
+      });
+      return score;
+    } catch (err) {
+      this.logger.warn(`computeRiskScore failed (${(err as Error).message}); using default`);
+      return 0.1;
+    }
   }
 
   /**
@@ -263,7 +297,7 @@ export class PaymentsService {
           orderBy: { createdAt: 'desc' },
         }),
       ]);
-      if (receiver) {
+      if (receiver && receiver.notificationsEnabled) {
         await this.botPush.publish({
           telegramId: Number(receiver.telegramId),
           type: 'payment_received',
@@ -273,7 +307,7 @@ export class PaymentsService {
           },
         });
       }
-      if (sender) {
+      if (sender && sender.notificationsEnabled) {
         await this.botPush.publish({
           telegramId: Number(sender.telegramId),
           type: 'payment_sent',

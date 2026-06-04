@@ -10,6 +10,8 @@ import { WorkerModule } from './worker.module';
 const QUEUE_NAME = 'watcher';
 const JOB_NAME = 'tick';
 const SCHEDULER_KEY = 'watcher-tick-scheduler';
+const DIGEST_JOB_NAME = 'digest';
+const DIGEST_SCHEDULER_KEY = 'weekly-digest-scheduler';
 
 async function bootstrap() {
   const logger = new Logger('WorkerMain');
@@ -19,6 +21,9 @@ async function bootstrap() {
   const config = app.get(ConfigService);
   const processor = app.get(WatcherProcessor);
   const tickSec = Number(config.get<string>('WATCHER_TICK_INTERVAL_SEC', '20'));
+  // Cron for the weekly insights digest. Default: Sundays at 09:00 (server TZ).
+  // Override for testing, e.g. WEEKLY_DIGEST_CRON='* * * * *' (every minute).
+  const digestCron = config.get<string>('WEEKLY_DIGEST_CRON', '0 9 * * 0');
   const redisUrl = config.get<string>('REDIS_URL', 'redis://localhost:6379');
 
   // BullMQ requires maxRetriesPerRequest: null on its connection. We pass an
@@ -39,11 +44,21 @@ async function bootstrap() {
   );
   logger.log(`scheduler registered: every ${tickSec}s`);
 
+  // Register the weekly insights digest on a cron. Idempotent.
+  await queue.upsertJobScheduler(
+    DIGEST_SCHEDULER_KEY,
+    { pattern: digestCron },
+    { name: DIGEST_JOB_NAME, data: {} },
+  );
+  logger.log(`digest scheduler registered: cron '${digestCron}'`);
+
   const worker = new Worker(
     QUEUE_NAME,
     async (job) => {
       if (job.name === JOB_NAME) {
         await processor.tick();
+      } else if (job.name === DIGEST_JOB_NAME) {
+        await processor.digest();
       }
     },
     { connection, concurrency: 1 },

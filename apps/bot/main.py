@@ -26,6 +26,7 @@ from src.handlers import help as help_handler
 from src.handlers import parse as parse_handler
 from src.handlers import rules as rules_handler
 from src.handlers import start as start_handler
+from src.handlers import voice as voice_handler
 from src.handlers import wallet as wallet_handler
 from src.services import notifications
 
@@ -47,6 +48,9 @@ async def amain() -> None:
         dp.include_router(help_handler.build_router(settings))
         dp.include_router(wallet_handler.build_router(api))
         dp.include_router(rules_handler.build_router(api))
+        # Voice notes (F.voice) → transcribe → same parse/confirm flow as text.
+        # Registered before the catch-all text parser.
+        dp.include_router(voice_handler.build_router(api, settings))
         # The free-text parser must register LAST — it has a catch-all message filter
         # and would otherwise shadow /start, /help, etc.
         dp.include_router(parse_handler.build_router(api, settings))

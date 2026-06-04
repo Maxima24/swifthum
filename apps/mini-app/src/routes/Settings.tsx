@@ -1,9 +1,10 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { haptic } from '../lib/tg';
 import { useBackButton } from '../hooks/useBackButton';
 import { useSwiftyexAccount, useLinkSwiftyex, useUnlinkSwiftyex } from '../hooks/swiftyex';
+import { useWallet, useUpdatePreferences } from '../hooks/payments';
 import { Header } from '../components/Header';
 import { Icon } from '../components/Icon';
 
@@ -14,7 +15,30 @@ export function Settings() {
   const unlinkMutation = useUnlinkSwiftyex();
   const linked = account?.linked ?? false;
   const pending = linkMutation.isPending || unlinkMutation.isPending;
+
+  const { data: wallet } = useWallet();
+  const prefsMutation = useUpdatePreferences();
   const [notifications, setNotifications] = useState(true);
+
+  // Seed the toggle from the persisted preference once the wallet loads.
+  useEffect(() => {
+    if (wallet?.notificationsEnabled !== undefined) {
+      setNotifications(wallet.notificationsEnabled);
+    }
+  }, [wallet?.notificationsEnabled]);
+
+  const toggleNotifications = async () => {
+    if (prefsMutation.isPending) return;
+    const next = !notifications;
+    haptic('light');
+    setNotifications(next); // optimistic
+    try {
+      await prefsMutation.mutateAsync({ notificationsEnabled: next });
+    } catch {
+      setNotifications(!next); // revert on failure
+      haptic('error');
+    }
+  };
 
   useBackButton(useCallback(() => navigate(-1), [navigate]));
 
@@ -87,11 +111,9 @@ export function Settings() {
             Notifications
           </h2>
           <button
-            onClick={() => {
-              haptic('light');
-              setNotifications((v) => !v);
-            }}
-            className="w-full rounded-2xl bg-tg-secondary-bg ring-1 ring-black/5 p-4 flex items-center gap-3"
+            onClick={toggleNotifications}
+            disabled={prefsMutation.isPending}
+            className="w-full rounded-2xl bg-tg-secondary-bg ring-1 ring-black/5 p-4 flex items-center gap-3 disabled:opacity-60"
           >
             <div className="w-11 h-11 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center">
               <Icon name="bell" size={22} />

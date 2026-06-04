@@ -51,6 +51,21 @@ def format_payment_sent(data: dict[str, Any]) -> str:
     return f"\U0001f4e4 Sent <b>{amount}</b> to <b>{receiver}</b>."
 
 
+def format_weekly_digest(data: dict[str, Any]) -> str:
+    rules = int(data.get("rulesFiredCount", 0))
+    txns = int(data.get("transactionsCount", 0))
+    summary = escape(str(data.get("digestSummary", "")).strip())
+    lines = [
+        "\U0001f4ca <b>Your week on SwiftHum</b>",
+        f"⚡ Rules fired: <b>{rules}</b>",
+        f"\U0001f4b8 Transactions: <b>{txns}</b>",
+    ]
+    if summary:
+        lines.append("")
+        lines.append(summary)
+    return "\n".join(lines)
+
+
 def format_notification(payload: dict[str, Any]) -> str | None:
     """Dispatch on payload.type. Returns None for unknown types so the
     notification loop logs + skips rather than crashing."""
@@ -62,6 +77,8 @@ def format_notification(payload: dict[str, Any]) -> str | None:
         return format_payment_received(data)
     if t == "payment_sent":
         return format_payment_sent(data)
+    if t == "weekly_digest":
+        return format_weekly_digest(data)
     return None
 
 

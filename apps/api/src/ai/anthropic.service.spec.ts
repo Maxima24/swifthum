@@ -174,3 +174,84 @@ describe('AnthropicService.parsePayment', () => {
     expect(res.recipient?.length).toBeLessThanOrEqual(60);
   });
 });
+
+const FRAUD_INPUT = {
+  amountMinor: 500000,
+  walletBalanceMinor: 2_500_000,
+  weeklySentMinor: 0,
+  weeklySentCount: 0,
+};
+
+describe('AnthropicService.scoreFraud', () => {
+  beforeEach(() => jest.spyOn(console, 'warn').mockImplementation(() => undefined));
+
+  it('returns the 0.1 fallback when no API key is configured', async () => {
+    const svc = makeService({});
+    const res = await svc.scoreFraud(FRAUD_INPUT);
+    expect(res.score).toBe(0.1);
+    expect(res.reasoning).toBe('no_api_key');
+  });
+
+  it('parses a valid score + reasoning', async () => {
+    const svc = makeService({ ANTHROPIC_API_KEY: 'sk-test' });
+    stubClientResponse(svc, JSON.stringify({ score: 0.42, reasoning: 'large for this user' }));
+    const res = await svc.scoreFraud(FRAUD_INPUT);
+    expect(res.score).toBeCloseTo(0.42);
+    expect(res.reasoning).toBe('large for this user');
+  });
+
+  it('clamps out-of-range scores into [0,1]', async () => {
+    const svc = makeService({ ANTHROPIC_API_KEY: 'sk-test' });
+    stubClientResponse(svc, JSON.stringify({ score: 2.5, reasoning: 'x' }));
+    const res = await svc.scoreFraud(FRAUD_INPUT);
+    expect(res.score).toBe(1);
+  });
+
+  it('falls back to 0.1 on non-JSON output', async () => {
+    const svc = makeService({ ANTHROPIC_API_KEY: 'sk-test' });
+    stubClientResponse(svc, 'definitely not json');
+    const res = await svc.scoreFraud(FRAUD_INPUT);
+    expect(res.score).toBe(0.1);
+    expect(res.reasoning).toBe('bad_json');
+  });
+
+  it('falls back to 0.1 on timeout / SDK error', async () => {
+    const svc = makeService({ ANTHROPIC_API_KEY: 'sk-test' });
+    stubClientThrows(svc, new Error('Request timed out'));
+    const res = await svc.scoreFraud(FRAUD_INPUT);
+    expect(res.score).toBe(0.1);
+    expect(res.reasoning).toBe('timeout_or_error');
+  });
+});
+
+const DIGEST_INPUT = {
+  userName: 'Demo',
+  rulesFired: 3,
+  transactions: 2,
+  netSentMinor: 1_200_000,
+  netReceivedMinor: 0,
+};
+
+describe('AnthropicService.digestSummary', () => {
+  beforeEach(() => jest.spyOn(console, 'warn').mockImplementation(() => undefined));
+
+  it('returns an empty string when no API key is configured', async () => {
+    const svc = makeService({});
+    const res = await svc.digestSummary(DIGEST_INPUT);
+    expect(res).toBe('');
+  });
+
+  it('returns the trimmed one-liner from the model', async () => {
+    const svc = makeService({ ANTHROPIC_API_KEY: 'sk-test' });
+    stubClientResponse(svc, '  Your rules fired 3 times and you sent ₦12,000.  ');
+    const res = await svc.digestSummary(DIGEST_INPUT);
+    expect(res).toBe('Your rules fired 3 times and you sent ₦12,000.');
+  });
+
+  it('returns an empty string on SDK error (so the worker uses its static line)', async () => {
+    const svc = makeService({ ANTHROPIC_API_KEY: 'sk-test' });
+    stubClientThrows(svc, new Error('boom'));
+    const res = await svc.digestSummary(DIGEST_INPUT);
+    expect(res).toBe('');
+  });
+});
