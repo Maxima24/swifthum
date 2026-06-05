@@ -349,18 +349,22 @@ export class PaymentsService {
   // ─── helpers ────────────────────────────────────────────────────
 
   private async publishRedeemNotifications(
-    result: { intent: { amountMinor: bigint }; senderName: string; receiverName: string },
+    result: {
+      intent: { amountMinor: bigint; senderId: string };
+      senderName: string;
+      receiverName: string;
+    },
     receiverId: string,
   ) {
     try {
+      // Look up both parties by id (the sender via intent.senderId, not a fragile
+      // displayName match) so the right user gets the DM.
       const [receiver, sender] = await Promise.all([
         this.prisma.user.findUnique({ where: { id: receiverId } }),
-        this.prisma.user.findFirst({
-          where: { displayName: result.senderName },
-          orderBy: { createdAt: 'desc' },
-        }),
+        this.prisma.user.findUnique({ where: { id: result.intent.senderId } }),
       ]);
       if (receiver && receiver.notificationsEnabled) {
+        this.logger.log(`publishing payment_received → telegramId=${receiver.telegramId}`);
         await this.botPush.publish({
           telegramId: Number(receiver.telegramId),
           type: 'payment_received',
@@ -371,6 +375,7 @@ export class PaymentsService {
         });
       }
       if (sender && sender.notificationsEnabled) {
+        this.logger.log(`publishing payment_sent → telegramId=${sender.telegramId}`);
         await this.botPush.publish({
           telegramId: Number(sender.telegramId),
           type: 'payment_sent',
