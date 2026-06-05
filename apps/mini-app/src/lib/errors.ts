@@ -35,3 +35,12 @@ export function friendlyRedeemError(e: unknown): string {
   if (e instanceof ApiError && e.status === 410) return FRIENDLY.expired;
   return "Couldn't redeem that token. Try a fresh QR from the sender.";
 }
+
+/** Friendly message for a failed payment-intent creation (the sender side). */
+export function friendlySendError(e: unknown): string {
+  const code = apiErrorCode(e);
+  if (code === 'insufficient_balance') return "You don't have enough balance for that amount.";
+  if (code === 'unauthorized') return FRIENDLY.unauthorized;
+  if (code === 'validation_error') return "That amount isn't valid.";
+  return "Couldn't create the payment. Check your connection and try again.";
+}
