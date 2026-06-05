@@ -53,7 +53,10 @@ async def amain() -> None:
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
     dp = Dispatcher()
-    redis = Redis.from_url(settings.redis_url)
+    # decode_responses=True so pubsub yields str (not bytes) — otherwise the
+    # notifications loop's `type == "message"` check never matches and every
+    # message is silently dropped. This client is used only for the pubsub.
+    redis = Redis.from_url(settings.redis_url, decode_responses=True)
 
     async with ApiClient(settings.api_base_url, settings.internal_api_secret) as api:
         dp.include_router(start_handler.build_router(settings))

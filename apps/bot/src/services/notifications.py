@@ -21,6 +21,19 @@ log = get(__name__)
 CHANNEL = "swifthum.notifications"  # mirrors NOTIFICATIONS_CHANNEL in apps/api/src/bot/bot-push.service.ts
 
 
+def _as_str(value: bytes | str | None) -> str | None:
+    """Normalize a redis pubsub field to str — robust whether the client was
+    created with decode_responses=True (str) or not (bytes)."""
+    if value is None:
+        return None
+    return value.decode("utf-8") if isinstance(value, bytes) else str(value)
+
+
+def is_real_message(message: dict) -> bool:
+    """A pubsub envelope is an actual published message (not a subscribe ack)."""
+    return _as_str(message.get("type")) == "message"
+
+
 async def run(bot: Bot, redis: Redis) -> None:
     """Long-running coroutine. Cancel from the caller on shutdown."""
     pubsub = redis.pubsub()
@@ -28,7 +41,7 @@ async def run(bot: Bot, redis: Redis) -> None:
     log.info("notification listener subscribed", channel=CHANNEL)
     try:
         async for message in pubsub.listen():
-            if message.get("type") != "message":
+            if not is_real_message(message):
                 continue
             await _dispatch(bot, message.get("data"))
     except asyncio.CancelledError:
@@ -56,13 +69,16 @@ async def _dispatch(bot: Bot, raw: bytes | str | None) -> None:
         log.warning("notification missing telegramId", payload=payload)
         return
 
+    ntype = payload.get("type")
     text = format_notification(payload)
     if not text:
-        log.info("notification type not recognized", type=payload.get("type"))
+        log.info("notification type not recognized", type=ntype)
         return
 
+    log.info("dispatching notification", type=ntype, telegram_id=telegram_id)
     try:
         await bot.send_message(chat_id=telegram_id, text=text, parse_mode=ParseMode.HTML)
+        log.info("notification sent", type=ntype, telegram_id=telegram_id)
     except Exception as e:
-        # Most common: 403 (user blocked the bot) — log and move on.
-        log.warning("send_message failed", telegram_id=telegram_id, error=str(e))
+        # Most common: 403 — the user hasn't started the bot or blocked it.
+        log.warning("send_message failed", type=ntype, telegram_id=telegram_id, error=str(e))
