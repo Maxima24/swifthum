@@ -64,6 +64,14 @@ export interface PaymentIntent {
   riskScore: number;
 }
 
+export interface IntentStatus {
+  status: 'pending' | 'completed' | 'refunded' | 'expired';
+  amountMinor: number;
+  currency: 'NGN';
+  expiresAt: string;
+  counterparty?: { displayName: string };
+}
+
 export interface RedemptionResult {
   status: 'ok';
   intentId: string;

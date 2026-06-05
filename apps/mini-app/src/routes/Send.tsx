@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useCreateIntent, useWallet } from '../hooks/payments';
+import { useCreateIntent, useWallet, useCancelIntent, useIntentStatus } from '../hooks/payments';
 import { useBackButton } from '../hooks/useBackButton';
 import { useMainButton } from '../hooks/useMainButton';
 import { haptic } from '../lib/tg';
@@ -33,6 +33,7 @@ export function Send() {
   const [searchParams] = useSearchParams();
   const { data: wallet } = useWallet();
   const create = useCreateIntent();
+  const cancel = useCancelIntent();
   const [stage, setStage] = useState<Stage>('amount');
   const [amountNgn, setAmountNgn] = useState<string>(() => initialAmountFromQuery(searchParams));
   const [mode, setMode] = useState<Mode>('sound');
@@ -42,14 +43,21 @@ export function Send() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(30);
 
+  // Poll the intent so the sender sees the receiver's scan land in real time.
+  const { data: status } = useIntentStatus(intent?.intentId, stage === 'broadcast');
+  const paid = status?.status === 'completed';
+  const receiverName = status?.counterparty?.displayName;
+
+  useEffect(() => {
+    if (paid) haptic('success');
+  }, [paid]);
+
   const amountMinor = Math.round(parseFloat(amountNgn || '0') * 100);
   const isValid =
     amountMinor > 0 &&
     !!wallet &&
     amountMinor <= wallet.balanceMinor &&
     !create.isPending;
-
-  useBackButton(useCallback(() => navigate('/pay'), [navigate]));
 
   const start = useCallback(async () => {
     if (!isValid) return;
@@ -65,14 +73,38 @@ export function Send() {
     }
   }, [isValid, create, amountMinor]);
 
+  // Leaving an unredeemed payment refunds the reservation immediately. Cancelling
+  // a completed (or already-refunded) intent is a safe no-op the backend rejects.
+  const cancelAndLeave = useCallback(async () => {
+    haptic('light');
+    if (intent && status?.status !== 'completed') {
+      try {
+        await cancel.mutateAsync(intent.intentId);
+      } catch {
+        /* already redeemed / refunded — ignore */
+      }
+    }
+    navigate('/pay');
+  }, [intent, status, cancel, navigate]);
+
+  useBackButton(useCallback(() => void cancelAndLeave(), [cancelAndLeave]));
+
   useMainButton({
-    text: stage === 'amount' ? (create.isPending ? 'Creating…' : 'Generate') : 'Done',
+    text:
+      stage === 'amount'
+        ? create.isPending
+          ? 'Creating…'
+          : 'Generate'
+        : paid
+          ? 'Done'
+          : 'Cancel & refund',
     isEnabled: stage === 'amount' ? isValid : true,
-    onClick: stage === 'amount' ? start : () => navigate('/pay'),
+    onClick:
+      stage === 'amount' ? start : paid ? () => navigate('/pay') : () => void cancelAndLeave(),
   });
 
   useEffect(() => {
-    if (stage !== 'broadcast' || !intent) return;
+    if (stage !== 'broadcast' || !intent || paid) return;
     const expiresAt = new Date(intent.expiresAt).getTime();
     const tick = () => {
       const s = Math.max(0, Math.round((expiresAt - Date.now()) / 1000));
@@ -82,10 +114,10 @@ export function Send() {
     tick();
     const id = setInterval(tick, 500);
     return () => clearInterval(id);
-  }, [stage, intent]);
+  }, [stage, intent, paid]);
 
   useEffect(() => {
-    if (stage !== 'broadcast' || mode !== 'sound' || !intent) return;
+    if (stage !== 'broadcast' || mode !== 'sound' || !intent || paid) return;
     let cancelled = false;
     let ctx: AudioContext | null = null;
 
@@ -113,7 +145,7 @@ export function Send() {
       cancelled = true;
       ctx?.close().catch(() => {});
     };
-  }, [stage, mode, intent]);
+  }, [stage, mode, intent, paid]);
 
   if (stage === 'amount') {
     return (
@@ -200,16 +232,54 @@ export function Send() {
     <div className="flex flex-col px-5 pb-10 lg:pb-16">
       <Header
         back
-        onBack={() => navigate('/pay')}
-        eyebrow="Broadcasting"
+        onBack={() => void cancelAndLeave()}
+        eyebrow={paid ? 'Sent' : 'Broadcasting'}
         title={formatNgn(amountMinor)}
         subtitle={
           <span className="text-[12px]">
-            {stage === 'done' ? 'Token expired' : `Expires in ${secondsLeft}s`}
+            {paid
+              ? receiverName
+                ? `Received by ${receiverName}`
+                : 'Received'
+              : stage === 'done'
+                ? 'Token expired'
+                : `Expires in ${secondsLeft}s`}
           </span>
         }
       />
 
+      {paid ? (
+        <div className="flex flex-col gap-5 pt-5">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.92 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="rounded-3xl bg-tg-secondary-bg ring-1 ring-black/5 p-8 flex flex-col items-center gap-4 min-h-[260px] justify-center"
+          >
+            <motion.div
+              initial={{ scale: 0.6 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 220, damping: 15 }}
+              className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-white flex items-center justify-center shadow-xl shadow-emerald-500/40"
+            >
+              <Icon name="check" size={36} strokeWidth={3} />
+            </motion.div>
+            <p className="text-lg font-semibold">Paid {formatNgn(amountMinor)}</p>
+            <p className="text-sm text-tg-hint text-center">
+              {receiverName ? `Received by ${receiverName}.` : 'Received.'}
+            </p>
+          </motion.div>
+
+          <button
+            onClick={() => {
+              haptic('light');
+              navigate('/pay');
+            }}
+            className="rounded-xl bg-gradient-to-br from-brand-from to-brand-to text-white py-3 font-semibold active:scale-[0.98] transition-transform"
+          >
+            Done
+          </button>
+        </div>
+      ) : (
       <div className="flex flex-col gap-5 pt-5">
         <div className="grid grid-cols-2 gap-1 rounded-full bg-tg-secondary-bg ring-1 ring-black/5 p-1">
           {(['sound', 'qr'] as Mode[]).map((m) => (
@@ -304,16 +374,20 @@ export function Send() {
           )}
         </AnimatePresence>
 
+        <p className="text-xs text-tg-hint text-center px-2 leading-snug">
+          {formatNgn(amountMinor)} is reserved — instantly refunded if you cancel or it isn’t
+          received.
+        </p>
+
         <button
-          onClick={() => {
-            haptic('light');
-            navigate('/pay');
-          }}
-          className="rounded-xl bg-tg-secondary-bg ring-1 ring-black/5 py-3 font-medium active:scale-[0.98] transition-transform"
+          onClick={() => void cancelAndLeave()}
+          disabled={cancel.isPending}
+          className="rounded-xl bg-tg-secondary-bg ring-1 ring-black/5 py-3 font-medium active:scale-[0.98] transition-transform disabled:opacity-60"
         >
-          Done
+          {cancel.isPending ? 'Refunding…' : 'Cancel & refund'}
         </button>
       </div>
+      )}
     </div>
   );
 }

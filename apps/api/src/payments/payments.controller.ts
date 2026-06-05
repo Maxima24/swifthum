@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtPayload } from '../auth/current-user.decorator';
 import {
@@ -16,6 +16,18 @@ export class PaymentsController {
   @Post('intents')
   createIntent(@CurrentUser() user: JwtPayload, @Body() dto: CreateIntentDto) {
     return this.payments.createIntent(user.sub, dto.amountMinor);
+  }
+
+  /** Sender polls their intent for the receiver's scan ("Paid ✓" confirmation). */
+  @Get('intents/:id')
+  intentStatus(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.payments.getIntentStatus(user.sub, id);
+  }
+
+  /** Sender cancels an unredeemed intent and is refunded immediately. */
+  @Post('intents/:id/cancel')
+  cancelIntent(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.payments.cancelIntent(user.sub, id);
   }
 
   /**

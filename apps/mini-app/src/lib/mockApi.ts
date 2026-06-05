@@ -21,7 +21,10 @@ let executions: Execution[] = [...initialMockExecutions];
 
 // In-memory payment state
 let wallet: Wallet = { balanceMinor: 25_000_00, currency: 'NGN', notificationsEnabled: true };
-const intents: Record<string, PaymentIntent & { senderName: string; consumed?: boolean }> = {};
+const intents: Record<
+  string,
+  PaymentIntent & { senderName: string; consumed?: boolean; refunded?: boolean }
+> = {};
 let transactions: Transaction[] = [];
 
 // In-memory SwiftyEx account state
@@ -148,6 +151,38 @@ export async function mockApi<T>(path: string, init?: RequestInit): Promise<T> {
       currency: intent.currency,
       expiresAt: intent.expiresAt,
       riskScore: intent.riskScore,
+    } as T;
+  }
+
+  // ─── Cancel an intent (sender) ───────────────────────────────
+  const cancelMatch = path.match(/^\/intents\/([^/]+)\/cancel$/);
+  if (cancelMatch && method === 'POST') {
+    const intent = Object.values(intents).find((x) => x.intentId === cancelMatch[1]);
+    if (!intent) throw new Error('404 not_found');
+    if (intent.consumed) throw new Error('409 already_redeemed');
+    intent.refunded = true;
+    return { status: 'refunded' } as T;
+  }
+
+  // ─── Intent status (sender polls for "Paid ✓") ───────────────
+  const statusMatch = path.match(/^\/intents\/([^/]+)$/);
+  if (statusMatch && method === 'GET') {
+    const intent = Object.values(intents).find((x) => x.intentId === statusMatch[1]);
+    if (!intent) throw new Error('404 not_found');
+    const expired = new Date(intent.expiresAt).getTime() < Date.now();
+    const status = intent.consumed
+      ? 'completed'
+      : intent.refunded
+        ? 'refunded'
+        : expired
+          ? 'expired'
+          : 'pending';
+    return {
+      status,
+      amountMinor: intent.amountMinor,
+      currency: 'NGN',
+      expiresAt: intent.expiresAt,
+      ...(intent.consumed ? { counterparty: { displayName: 'Demo Receiver' } } : {}),
     } as T;
   }
 

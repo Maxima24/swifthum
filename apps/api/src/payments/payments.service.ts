@@ -153,6 +153,8 @@ export class PaymentsService {
         if (!intent) throw Errors.invalidOrExpired();
         if (intent.id !== payload.i) throw Errors.invalidOrExpired();
         if (intent.consumedAt) throw Errors.alreadyRedeemed();
+        // The sender may have cancelled (refunded) — never credit a refunded intent.
+        if (intent.refundedAt) throw Errors.invalidOrExpired();
         if (intent.expiresAt.getTime() <= Date.now()) throw Errors.expired();
         if (intent.senderId === receiverId) {
           throw Errors.validation('cannot redeem your own intent');
@@ -218,6 +220,67 @@ export class PaymentsService {
       amountMinor: Number(result.intent.amountMinor),
       currency: 'NGN' as const,
       sender: { displayName: result.senderName },
+    };
+  }
+
+  /**
+   * Sender cancels an unredeemed intent and gets the reserved funds back
+   * immediately (instead of waiting for the expiry sweep). Idempotent: a
+   * already-refunded intent returns ok; a consumed (completed) one throws.
+   */
+  async cancelIntent(userId: string, intentId: string): Promise<{ status: 'refunded' }> {
+    return this.prisma.$transaction(
+      async (tx) => {
+        const intent = await tx.paymentIntent.findUnique({ where: { id: intentId } });
+        if (!intent || intent.senderId !== userId) throw Errors.notFound('intent not found');
+        if (intent.consumedAt) throw Errors.alreadyRedeemed();
+        if (intent.refundedAt) return { status: 'refunded' as const }; // idempotent
+
+        await tx.$executeRaw`SELECT 1 FROM "Wallet" WHERE "userId" = ${intent.senderId} FOR UPDATE`;
+        await tx.wallet.update({
+          where: { userId: intent.senderId },
+          data: { balanceMinor: { increment: intent.amountMinor } },
+        });
+        await tx.paymentIntent.update({
+          where: { id: intent.id },
+          data: { refundedAt: new Date() },
+        });
+        return { status: 'refunded' as const };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
+
+  /**
+   * Sender polls their intent to learn when the receiver scanned. On `completed`
+   * we surface the receiver's name (from the sender's "sent" ledger row).
+   */
+  async getIntentStatus(userId: string, intentId: string) {
+    const intent = await this.prisma.paymentIntent.findUnique({ where: { id: intentId } });
+    if (!intent || intent.senderId !== userId) throw Errors.notFound('intent not found');
+
+    let status: 'pending' | 'completed' | 'refunded' | 'expired';
+    let counterparty: { displayName: string } | undefined;
+    if (intent.consumedAt) {
+      status = 'completed';
+      const sentTx = await this.prisma.transaction.findFirst({
+        where: { userId, intentId, direction: 'sent' },
+      });
+      if (sentTx) counterparty = { displayName: sentTx.counterpartyName };
+    } else if (intent.refundedAt) {
+      status = 'refunded';
+    } else if (intent.expiresAt.getTime() <= Date.now()) {
+      status = 'expired';
+    } else {
+      status = 'pending';
+    }
+
+    return {
+      status,
+      amountMinor: Number(intent.amountMinor),
+      currency: 'NGN' as const,
+      expiresAt: intent.expiresAt.toISOString(),
+      ...(counterparty ? { counterparty } : {}),
     };
   }
 

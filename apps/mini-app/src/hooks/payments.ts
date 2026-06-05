@@ -1,6 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
-import type { PaymentIntent, RedemptionResult, UserPreferences, Wallet } from '../types';
+import type {
+  IntentStatus,
+  PaymentIntent,
+  RedemptionResult,
+  UserPreferences,
+  Wallet,
+} from '../types';
 
 export function useWallet() {
   return useQuery({
@@ -35,6 +41,26 @@ export function useCreateIntent() {
         body: JSON.stringify({ currency: 'NGN', ...data }),
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['wallet'] }),
+  });
+}
+
+export function useCancelIntent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (intentId: string) =>
+      api<{ status: 'refunded' }>(`/intents/${intentId}/cancel`, { method: 'POST' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['wallet'] }),
+  });
+}
+
+/** Polls an intent's status (every 2.5s) until it leaves `pending`. */
+export function useIntentStatus(intentId: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ['intent', intentId],
+    queryFn: () => api<IntentStatus>(`/intents/${intentId}`),
+    enabled: enabled && !!intentId,
+    refetchInterval: (query) =>
+      query.state.data && query.state.data.status !== 'pending' ? false : 2500,
   });
 }
 
