@@ -7,6 +7,7 @@ import {
   mainButton,
   hapticFeedback,
   initData,
+  retrieveRawInitData,
 } from '@telegram-apps/sdk-react';
 
 let initialized = false;
@@ -20,6 +21,13 @@ export function initTelegram() {
     viewport.mount();
     backButton.mount();
     if (mainButton.mount.isAvailable()) mainButton.mount();
+    // Restore init data from launch params so initData.* signals (incl. raw())
+    // are populated — without this initData.raw() returns undefined in v3.
+    try {
+      initData.restore();
+    } catch {
+      /* not in Telegram */
+    }
     miniApp.ready();
     initialized = true;
   } catch (e) {
@@ -27,12 +35,31 @@ export function initTelegram() {
   }
 }
 
+/**
+ * Raw Telegram initData string for backend HMAC verification. Tries the most
+ * reliable sources in order: the telegram-web-app.js global (loaded in
+ * index.html), the SDK's direct launch-param reader, then the restored signal.
+ */
 export function getInitDataRaw(): string | null {
   try {
-    return initData.raw() ?? null;
+    const wa = (window as any).Telegram?.WebApp;
+    if (wa?.initData) return wa.initData as string;
   } catch {
-    return null;
+    /* ignore */
   }
+  try {
+    const raw = retrieveRawInitData();
+    if (raw) return raw;
+  } catch {
+    /* ignore */
+  }
+  try {
+    const raw = initData.raw();
+    if (raw) return raw;
+  } catch {
+    /* ignore */
+  }
+  return null;
 }
 
 export function isInsideTelegram(): boolean {
