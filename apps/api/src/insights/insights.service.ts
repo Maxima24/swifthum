@@ -24,7 +24,7 @@ export class InsightsService {
       this.prisma.rule.findMany({ where: { userId } }),
     ]);
 
-    return this.ai.suggestRules({
+    const suggestions = await this.ai.suggestRules({
       recentPrices: snapshots.map((s) => ({
         asset: s.asset as Asset,
         priceMinor: Number(s.priceMinor),
@@ -36,5 +36,14 @@ export class InsightsService {
         whenPriceMinor: Number(r.whenPriceMinor),
       })),
     });
+
+    // The Mini App expects { id, reason, rule: { name, when, then } }. Wrap the
+    // flat AI output (same shape as the static fallback) to match that contract.
+    // Suggestions are ephemeral (not persisted), so an index-based id suffices.
+    return suggestions.map((s, i) => ({
+      id: `sug_${i}`,
+      reason: s.reason,
+      rule: { name: s.name, when: s.when, then: s.then },
+    }));
   }
 }

@@ -436,17 +436,23 @@ Pulls from `SwiftyexClient.currentPrices()`. **Cache in Redis with 10s TTL** —
 
 Returns 3-5 pre-fab rule cards for the empty Dashboard.
 
-**Response 200** — array of suggestion objects:
+**Response 200** — array of suggestion objects. The Mini App expects each
+suggestion to wrap the rule under a `rule` key and include an `id`:
 ```json
 [
   {
-    "name": "Buy the dip — USDT under ₦1,600",
-    "when": { "asset": "USDT", "op": "lt", "priceMinor": 1600_00 },
-    "then": { "action": "buy", "amountMinor": 5000_00, "currency": "NGN" },
-    "reason": "USDT dipped below ₦1,600 three times in the last 7 days."
+    "id": "sug_abc123",
+    "reason": "USDT dipped below ₦1,600 three times in the last 7 days.",
+    "rule": {
+      "name": "Buy the dip — USDT under ₦1,600",
+      "when": { "asset": "USDT", "op": "lt", "priceMinor": 1600_00 },
+      "then": { "action": "buy", "amountMinor": 5000_00, "currency": "NGN" }
+    }
   }
 ]
 ```
+(`AnthropicService.suggestRules` returns the flat `{ name, when, then, reason }`
+shape; `InsightsService` wraps it into the above before responding.)
 
 ### Implementation
 
