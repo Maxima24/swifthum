@@ -111,6 +111,10 @@ services:
     build:
       context: ..
       dockerfile: apps/mini-app/Dockerfile
+      args:
+        # Real backend (not mocks) baked into the static bundle at build time.
+        VITE_USE_MOCKS: "false"
+        VITE_API_URL: ${VITE_API_URL}
     container_name: swifthum-miniapp
     networks: [swifthum_net]
     restart: unless-stopped
