@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { SwiftyexService } from '../swiftyex/swiftyex.service';
@@ -7,17 +8,21 @@ import { ASSETS, type Asset } from '../common/assets';
 import { prefixedId } from '../common/ids';
 
 const CACHE_KEY = 'prices:current';
-const CACHE_TTL_SEC = 10;
 
 @Injectable()
 export class PricesService {
   private readonly logger = new Logger('Prices');
+  private readonly cacheTtlSec: number;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly swiftyex: SwiftyexService,
-  ) {}
+    config: ConfigService,
+  ) {
+    // Longer cache = fewer upstream calls (keeps free CoinGecko/CMC quotas alive).
+    this.cacheTtlSec = Number(config.get<string>('PRICES_CACHE_TTL_SEC', '60'));
+  }
 
   /**
    * Current prices for all tracked assets. Reads from Redis cache (10s TTL);
@@ -41,7 +46,7 @@ export class PricesService {
     const fresh = await this.swiftyex.currentPrices();
     await this.redis.client.setex(
       CACHE_KEY,
-      CACHE_TTL_SEC,
+      this.cacheTtlSec,
       JSON.stringify({
         USDT: fresh.USDT.toString(),
         BTC: fresh.BTC.toString(),
