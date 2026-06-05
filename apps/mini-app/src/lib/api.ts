@@ -6,6 +6,22 @@ const USE_MOCKS = (import.meta.env.VITE_USE_MOCKS ?? 'true') !== 'false';
 
 export const useMocks = USE_MOCKS;
 
+/**
+ * Error thrown on a non-2xx API response. Carries the HTTP `status` and the
+ * backend's machine `code` (the `error` field of the `{ error, message }` body)
+ * so callers can branch on a stable code instead of parsing message strings.
+ */
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly code: string | null,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   if (USE_MOCKS) return mockApi<T>(path, init);
 
@@ -19,13 +35,18 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   if (!res.ok) {
-    let detail = '';
+    let code: string | null = null;
+    let message = `${res.status} ${res.statusText}`;
     try {
-      detail = JSON.stringify(await res.json());
+      const body = await res.json();
+      if (body && typeof body === 'object') {
+        if (typeof body.error === 'string') code = body.error;
+        if (typeof body.message === 'string' && body.message) message = body.message;
+      }
     } catch {
-      /* ignore */
+      /* non-JSON body — keep the status line */
     }
-    throw new Error(`${res.status} ${res.statusText} ${detail}`);
+    throw new ApiError(res.status, code, message);
   }
   // 204 No Content (e.g. DELETE /swiftyex/link) has no body to parse.
   if (res.status === 204) return undefined as T;
