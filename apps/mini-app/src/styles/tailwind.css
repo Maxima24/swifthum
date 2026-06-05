@@ -1,16 +1,114 @@
 @import "tailwindcss";
 
-@theme {
-  --color-tg-bg: var(--tg-theme-bg-color, #f6f7fb);
-  --color-tg-text: var(--tg-theme-text-color, #0f0f0f);
-  --color-tg-hint: var(--tg-theme-hint-color, #6b7280);
-  --color-tg-link: var(--tg-theme-link-color, #6366f1);
-  --color-tg-button: var(--tg-theme-button-color, #6366f1);
-  --color-tg-button-text: var(--tg-theme-button-text-color, #ffffff);
-  --color-tg-secondary-bg: var(--tg-theme-secondary-bg-color, #ffffff);
+/*
+ * Brand display face — Fredoka (rounded, friendly, matches the SwiftyHackFest
+ * mark). Self-hosted woff2 so the Mini App never depends on a runtime CDN
+ * request. Used ONLY for big headings + key numerals; body stays the clean sans.
+ */
+@font-face {
+  font-family: "Fredoka";
+  font-style: normal;
+  font-weight: 500 700;
+  font-display: swap;
+  src: url("/fonts/fredoka.woff2") format("woff2");
+}
 
-  --color-brand-from: #6366f1;
-  --color-brand-to: #8b5cf6;
+/*
+ * Design tokens — the SINGLE source of color.
+ * Components reference these by semantic role (bg / surface / border / text-* /
+ * accent / …), never raw hex. Light + dark are defined here; everything else
+ * inherits for free. See the project Design System doc.
+ */
+
+:root,
+[data-theme="light"] {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-muted: #f0f1f4;
+  --border: #e7e8ec;
+  --border-strong: #d4d6dd;
+  --dot: rgba(16, 18, 22, 0.07); /* faint dot-grid texture */
+
+  --text-primary: #16181d;
+  --text-secondary: #5b6170;
+  --text-tertiary: #9197a4;
+
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --accent-soft: #eef0fe; /* low-tint accent surface for icon tiles, active rows */
+  --on-accent: #ffffff;
+
+  --danger: #d92d20;
+  --danger-soft: #fdeceb;
+  --success: #0a8c5a;
+  --success-soft: #e7f5ee;
+  --warning: #b25e09;
+  --warning-soft: #fbf0e2;
+
+  --shadow-soft: 0 1px 2px rgba(16, 18, 22, 0.04), 0 1px 3px rgba(16, 18, 22, 0.06);
+  --shadow-raised: 0 4px 16px rgba(16, 18, 22, 0.08);
+}
+
+[data-theme="dark"] {
+  --bg: #0d0e11;
+  --surface: #16181d;
+  --surface-muted: #20232a;
+  --border: #282b33;
+  --border-strong: #3a3e48;
+  --dot: rgba(255, 255, 255, 0.06); /* faint dot-grid texture */
+
+  --text-primary: #f3f4f6;
+  --text-secondary: #a3a9b5;
+  --text-tertiary: #6c7280;
+
+  --accent: #6c63ff;
+  --accent-hover: #837bff;
+  --accent-soft: #1d1c33;
+  --on-accent: #ffffff;
+
+  --danger: #f97066;
+  --danger-soft: #2a1715;
+  --success: #3ccb8a;
+  --success-soft: #112318;
+  --warning: #e0993f;
+  --warning-soft: #251a0e;
+
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-raised: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+/* Expose tokens to Tailwind utilities (bg-surface, text-text-secondary, …) */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
+
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+
+  --shadow-soft: var(--shadow-soft);
+  --shadow-raised: var(--shadow-raised);
+
+  /* One body family; one mono family; one rounded display family for headings. */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  --font-display: "Fredoka", ui-rounded, "SF Pro Rounded", var(--font-sans);
 }
 
 html,
@@ -20,33 +118,80 @@ body,
   min-height: 100dvh;
 }
 
+html {
+  color-scheme: light dark;
+  background-color: var(--bg);
+}
+
 body {
-  /* Subtle ambient gradient — looks intentional on desktop without "phone in window" */
-  background:
-    radial-gradient(900px 600px at 100% 0%, rgba(139, 92, 246, 0.08), transparent 60%),
-    radial-gradient(700px 500px at 0% 100%, rgba(99, 102, 241, 0.06), transparent 60%),
-    var(--color-tg-bg);
-  background-attachment: fixed;
-  color: var(--color-tg-text);
+  background-color: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
   -webkit-user-select: none;
   user-select: none;
   padding-top: env(safe-area-inset-top);
 }
 
+/*
+ * Faint dot-grid texture as a fixed, full-viewport layer behind everything.
+ * Using a fixed pseudo-element (not `background-attachment: fixed`, which is
+ * unreliable on mobile Safari / Telegram WebView) so the dots render
+ * consistently and stay put while content scrolls. Theme-aware via --dot.
+ */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: radial-gradient(var(--dot) 1px, transparent 1px);
+  background-size: 22px 22px;
+  background-position: -1px -1px;
+}
+
+/* Tabular numerals for money / counts so figures don't jitter. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Rounded brand display face — headings + key numerals only, never body. */
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { scrollbar-width: none; }
 
-@keyframes float-slow {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-3px); }
+/* Faint mascot watermark inside cards — quiet brand texture, theme-aware.
+ * Lower in light (so it doesn't muddy white surfaces), slightly higher in dark. */
+.card-watermark {
+  opacity: 0.05;
 }
-.animate-float-slow { animation: float-slow 4.5s ease-in-out infinite; }
-
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.45); }
-  50% { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
+[data-theme="dark"] .card-watermark {
+  opacity: 0.08;
 }
-.animate-pulse-glow { animation: pulse-glow 2s ease-out infinite; }
 
 button, [role="button"], a { touch-action: manipulation; }
+
+/* Loader motion — functional "working" feedback, not entrance theatre. */
+@keyframes breathe {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-6px) scale(1.02); }
+}
+@keyframes loadbar {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(260%); }
+}
+
+/* Functional motion only; respect reduced-motion. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

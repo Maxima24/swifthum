@@ -1,14 +1,12 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { haptic } from '../lib/tg';
 import { formatRuleSummary } from '../lib/format';
 import { useCreateRule } from '../hooks/rules';
 import { useMainButton } from '../hooks/useMainButton';
 import { useBackButton } from '../hooks/useBackButton';
-import { Header } from '../components/Header';
-import { Icon } from '../components/Icon';
 import type { Action, Asset, Operator, Rule } from '../types';
+import { Header, Card, Button, Field, Input, Select } from '../ui';
 
 const ASSETS: Asset[] = ['USDT', 'BTC', 'ETH'];
 const OPERATORS: { value: Operator; label: string }[] = [
@@ -18,9 +16,9 @@ const OPERATORS: { value: Operator; label: string }[] = [
   { value: 'crosses_below', label: 'crosses below' },
 ];
 const ACTIONS: { value: Action; label: string }[] = [
-  { value: 'buy', label: 'BUY' },
-  { value: 'sell', label: 'SELL' },
-  { value: 'alert', label: 'ALERT only' },
+  { value: 'buy', label: 'Buy' },
+  { value: 'sell', label: 'Sell' },
+  { value: 'alert', label: 'Alert only' },
 ];
 
 export function RuleBuilder() {
@@ -41,8 +39,7 @@ export function RuleBuilder() {
       id: 'draft',
       name: name || `${action.toUpperCase()} ${asset}`,
       when: { asset, op, priceMinor },
-      then:
-        action === 'alert' ? { action } : { action, amountMinor, currency: 'NGN' },
+      then: action === 'alert' ? { action } : { action, amountMinor, currency: 'NGN' },
       state: 'sleeping',
       createdAt: new Date().toISOString(),
       firedCount: 0,
@@ -50,7 +47,8 @@ export function RuleBuilder() {
     [name, asset, op, priceMinor, action, amountMinor],
   );
 
-  const isValid = priceMinor > 0 && (action === 'alert' || amountMinor > 0) && !create.isPending;
+  const isValid =
+    priceMinor > 0 && (action === 'alert' || amountMinor > 0) && !create.isPending;
 
   const save = useCallback(async () => {
     if (!isValid) return;
@@ -69,159 +67,101 @@ export function RuleBuilder() {
   useBackButton(goBack);
 
   return (
-    <div className="flex flex-col px-5 pb-10 lg:pb-16">
-      <Header back onBack={goBack} eyebrow="New rule" title="Build a rule" />
+    <>
+      <Header back onBack={goBack} title="New rule" />
 
-      <div className="flex flex-col gap-5 pt-5">
+      <div className="flex flex-col gap-8 pt-5">
         <Field label="Name (optional)">
-          <input
-            type="text"
+          <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Buy USDT dip"
-            className="w-full rounded-xl bg-tg-secondary-bg ring-1 ring-black/5 px-4 py-3 outline-none focus:ring-2 focus:ring-tg-button"
           />
         </Field>
 
-        <Section label="WHEN" icon="trending-up" tone="amber">
-          <Field label="Asset">
-            <Select
-              value={asset}
-              onChange={(v) => setAsset(v as Asset)}
-              options={ASSETS.map((a) => ({ value: a, label: a }))}
-            />
-          </Field>
-          <Field label="Condition">
-            <Select value={op} onChange={(v) => setOp(v as Operator)} options={OPERATORS} />
-          </Field>
-          <Field label="Threshold price (₦)">
-            <input
-              type="number"
-              inputMode="decimal"
-              value={priceNgn}
-              onChange={(e) => setPriceNgn(e.target.value)}
-              className="w-full rounded-xl bg-tg-secondary-bg ring-1 ring-black/5 px-4 py-3 outline-none focus:ring-2 focus:ring-tg-button"
-            />
-          </Field>
-        </Section>
-
-        <Section label="THEN" icon="zap" tone="emerald">
-          <Field label="Action">
-            <Select value={action} onChange={(v) => setAction(v as Action)} options={ACTIONS} />
-          </Field>
-          {action !== 'alert' && (
-            <Field label="Amount (₦)">
-              <input
-                type="number"
-                inputMode="decimal"
-                value={amountNgn}
-                onChange={(e) => setAmountNgn(e.target.value)}
-                className="w-full rounded-xl bg-tg-secondary-bg ring-1 ring-black/5 px-4 py-3 outline-none focus:ring-2 focus:ring-tg-button"
+        <div>
+          <SectionTitle index="1" label="When this happens" />
+          <Card className="flex flex-col gap-4">
+            <Field label="Asset">
+              <Select
+                value={asset}
+                onChange={setAsset}
+                options={ASSETS.map((a) => ({ value: a, label: a }))}
               />
             </Field>
-          )}
-        </Section>
-
-        <motion.div
-          layout
-          className="rounded-2xl bg-gradient-to-br from-brand-from/[0.06] to-brand-to/[0.06] ring-1 ring-brand-from/10 p-4"
-        >
-          <div className="flex items-center gap-1.5 mb-2">
-            <Icon name="sparkles" size={12} className="text-violet-500" />
-            <p className="text-[10px] text-tg-hint uppercase tracking-[0.12em] font-semibold">
-              Preview
-            </p>
-          </div>
-          <motion.p
-            key={formatRuleSummary(draft)}
-            initial={{ opacity: 0.4 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.2 }}
-            className="text-sm leading-snug font-medium"
-          >
-            {formatRuleSummary(draft)}
-          </motion.p>
-        </motion.div>
-
-        <button
-          onClick={save}
-          disabled={!isValid}
-          className="w-full rounded-2xl bg-gradient-to-br from-brand-from to-brand-to text-white px-6 py-4 font-semibold shadow-lg shadow-brand-from/30 disabled:opacity-40 active:scale-[0.98] transition-transform"
-        >
-          {create.isPending ? 'Saving…' : 'Save rule'}
-        </button>
-
-        <button
-          onClick={() => {
-            haptic('light');
-            navigate('/rules');
-          }}
-          className="rounded-xl bg-tg-secondary-bg ring-1 ring-black/5 py-3 font-medium active:scale-[0.98] transition-transform"
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function Section({
-  label,
-  icon,
-  tone,
-  children,
-}: {
-  label: string;
-  icon: 'trending-up' | 'zap';
-  tone: 'amber' | 'emerald';
-  children: React.ReactNode;
-}) {
-  const toneClass =
-    tone === 'amber' ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600';
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${toneClass}`}>
-          <Icon name={icon} size={14} />
+            <Field label="Condition">
+              <Select value={op} onChange={setOp} options={OPERATORS} />
+            </Field>
+            <Field label="Threshold price (₦)">
+              <Input
+                type="number"
+                inputMode="decimal"
+                value={priceNgn}
+                onChange={(e) => setPriceNgn(e.target.value)}
+              />
+            </Field>
+          </Card>
         </div>
-        <h2 className="text-[11px] font-semibold text-tg-hint uppercase tracking-[0.12em]">
-          {label}
-        </h2>
+
+        <div>
+          <SectionTitle index="2" label="Then do this" />
+          <Card className="flex flex-col gap-4">
+            <Field label="Action">
+              <Select value={action} onChange={setAction} options={ACTIONS} />
+            </Field>
+            {action !== 'alert' && (
+              <Field label="Amount (₦)">
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  value={amountNgn}
+                  onChange={(e) => setAmountNgn(e.target.value)}
+                />
+              </Field>
+            )}
+          </Card>
+        </div>
+
+        <div>
+          <p className="px-1 mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-text-tertiary">
+            Preview
+          </p>
+          <Card>
+            <p className="text-[15px] font-medium leading-snug text-text-primary">
+              {formatRuleSummary(draft)}
+            </p>
+          </Card>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <Button size="lg" block disabled={!isValid} onClick={save}>
+            {create.isPending ? 'Saving…' : 'Save rule'}
+          </Button>
+          <Button
+            variant="ghost"
+            block
+            onClick={() => {
+              haptic('light');
+              navigate('/rules');
+            }}
+          >
+            Cancel
+          </Button>
+        </div>
       </div>
-      <div className="space-y-3">{children}</div>
+    </>
+  );
+}
+
+function SectionTitle({ index, label }: { index: string; label: string }) {
+  return (
+    <div className="flex items-center gap-2.5 px-1 mb-3">
+      <span className="w-6 h-6 rounded-lg bg-accent-soft text-accent text-[12px] font-bold flex items-center justify-center">
+        {index}
+      </span>
+      <h2 className="text-[15px] font-bold tracking-[-0.01em] text-text-primary">
+        {label}
+      </h2>
     </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block space-y-1.5">
-      <span className="text-xs text-tg-hint">{label}</span>
-      {children}
-    </label>
-  );
-}
-
-function Select<T extends string>({
-  value,
-  onChange,
-  options,
-}: {
-  value: T;
-  onChange: (v: T) => void;
-  options: { value: T; label: string }[];
-}) {
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value as T)}
-      className="w-full rounded-xl bg-tg-secondary-bg ring-1 ring-black/5 px-4 py-3 outline-none focus:ring-2 focus:ring-tg-button appearance-none"
-    >
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
   );
 }

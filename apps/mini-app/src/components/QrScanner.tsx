@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
+import { Button, Input } from '../ui';
 
 interface Props {
   onResult: (text: string) => void;
@@ -15,9 +16,9 @@ interface Props {
  * Two things keep this from white-screening:
  *  1. We `stop()` AND `clear()` the scanner — removing html5-qrcode's injected
  *     <video>/canvas nodes — BEFORE calling onResult. onResult flips parent state
- *     which unmounts us (and runs framer-motion's exit animation); if html5-qrcode's
- *     foreign DOM is still inside our div, React's removeChild throws and the app
- *     blanks. Clearing first means React only ever unmounts nodes it owns.
+ *     which unmounts us; if html5-qrcode's foreign DOM is still inside our div,
+ *     React's removeChild throws and the app blanks. Clearing first means React
+ *     only ever unmounts nodes it owns.
  *  2. Callbacks are read through refs so the camera effect runs exactly once and
  *     never restarts when the parent re-renders (e.g. redeem pending/success).
  */
@@ -89,32 +90,24 @@ export function QrScanner({ onResult, onError }: Props) {
   }, [regionId]);
 
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-3">
       <div
         id={regionId}
-        className="overflow-hidden rounded-2xl bg-black aspect-square w-full [&_video]:h-full [&_video]:w-full [&_video]:object-cover"
+        className="overflow-hidden rounded-2xl bg-surface-muted aspect-square w-full [&_video]:h-full [&_video]:w-full [&_video]:object-cover"
       />
       {cameraFailed && (
-        <p className="text-xs text-amber-700 text-center">
+        <p className="text-xs text-warning text-center">
           Couldn't open the camera. Paste the token from the sender instead.
         </p>
       )}
-      <div className="space-y-2">
-        <input
-          type="text"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="…or paste token from sender"
-          className="w-full rounded-xl bg-tg-secondary-bg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-tg-button"
-        />
-        <button
-          onClick={() => text && onResult(text)}
-          disabled={!text}
-          className="w-full rounded-xl bg-tg-button text-tg-button-text py-2 text-sm font-medium disabled:opacity-40"
-        >
-          Submit token
-        </button>
-      </div>
+      <Input
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="…or paste token from sender"
+      />
+      <Button block variant="secondary" disabled={!text} onClick={() => text && onResult(text)}>
+        Submit token
+      </Button>
     </div>
   );
 }

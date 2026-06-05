@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useSuggestedRules } from '../hooks/suggestions';
 import { useCreateRule } from '../hooks/rules';
@@ -6,6 +5,7 @@ import { formatRuleSummary } from '../lib/format';
 import { haptic } from '../lib/tg';
 import type { Rule } from '../types';
 import { Icon } from './Icon';
+import { Button } from '../ui';
 
 export function SuggestedRules() {
   const { data, isLoading } = useSuggestedRules();
@@ -15,19 +15,16 @@ export function SuggestedRules() {
   if (isLoading || !data || data.length === 0) return null;
 
   return (
-    <section className="space-y-2.5">
-      <div className="flex items-center justify-between px-1">
-        <div className="flex items-center gap-1.5">
-          <Icon name="sparkles" size={14} className="text-violet-500" />
-          <h2 className="text-[11px] font-semibold text-tg-hint uppercase tracking-[0.12em]">
-            AI suggestions
-          </h2>
-        </div>
-        <span className="text-[11px] text-tg-hint">From your activity</span>
+    <section>
+      <div className="flex items-center gap-1.5 px-1 mb-2">
+        <Icon name="sparkles" size={14} className="text-text-tertiary" />
+        <h2 className="text-[11px] font-bold uppercase tracking-[0.12em] text-text-tertiary">
+          Suggested for you
+        </h2>
       </div>
 
-      <div className="flex gap-3 overflow-x-auto no-scrollbar -mx-5 px-5 pb-2 snap-x snap-mandatory">
-        {data.map((s, i) => {
+      <div className="flex gap-3 overflow-x-auto no-scrollbar -mx-5 px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 pb-1 snap-x snap-mandatory">
+        {data.map((s) => {
           const previewRule: Rule = {
             id: 'preview_' + s.id,
             name: s.rule.name,
@@ -38,27 +35,22 @@ export function SuggestedRules() {
             firedCount: 0,
           };
           return (
-            <motion.div
+            <div
               key={s.id}
-              initial={{ opacity: 0, x: 16 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.06 }}
-              className="snap-start shrink-0 w-72 rounded-2xl bg-gradient-to-br from-violet-500/[0.10] via-tg-secondary-bg to-tg-secondary-bg p-4 space-y-3 ring-1 ring-violet-500/15 relative overflow-hidden"
+              className="snap-start shrink-0 w-[82%] sm:w-72 rounded-2xl bg-surface border border-border shadow-[var(--shadow-soft)] p-4 flex flex-col"
             >
-              {/* Decorative sparkle */}
-              <motion.div
-                animate={{ opacity: [0.4, 1, 0.4], scale: [1, 1.15, 1] }}
-                transition={{ duration: 3, repeat: Infinity, delay: i * 0.5 }}
-                className="absolute top-3 right-3 text-violet-400"
-              >
-                <Icon name="sparkles" size={14} />
-              </motion.div>
-
-              <p className="text-sm leading-snug pr-5">{s.reason}</p>
-              <p className="text-xs text-tg-hint font-medium leading-snug">
+              <p className="text-[14px] font-semibold text-text-primary leading-snug">
+                {s.reason}
+              </p>
+              <p className="text-[12px] text-text-secondary leading-snug mt-1.5 flex-1">
                 {formatRuleSummary(previewRule)}
               </p>
-              <button
+              <Button
+                className="mt-3"
+                variant="secondary"
+                block
+                icon="plus"
+                disabled={create.isPending}
                 onClick={async () => {
                   haptic('success');
                   await create.mutateAsync({
@@ -68,12 +60,10 @@ export function SuggestedRules() {
                   });
                   navigate('/rules');
                 }}
-                disabled={create.isPending}
-                className="w-full rounded-xl bg-gradient-to-br from-violet-500 to-indigo-500 text-white py-2 text-sm font-semibold disabled:opacity-50 active:scale-[0.98] transition-transform shadow-md shadow-violet-500/25"
               >
-                {create.isPending ? 'Adding…' : 'Add this rule'}
-              </button>
-            </motion.div>
+                {create.isPending ? 'Adding…' : 'Add rule'}
+              </Button>
+            </div>
           );
         })}
       </div>

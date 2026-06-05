@@ -1,6 +1,5 @@
 import { useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import {
   useDeleteRule,
   usePauseRule,
@@ -12,8 +11,19 @@ import { formatPriceMinor, formatRelativeTime, formatRuleSummary } from '../lib/
 import { StateBadge } from '../components/StateBadge';
 import { haptic } from '../lib/tg';
 import { useBackButton } from '../hooks/useBackButton';
-import { Header } from '../components/Header';
+import { usePriceSeries } from '../hooks/usePriceSeries';
 import { Icon } from '../components/Icon';
+import { PriceChart } from '../components/PriceChart';
+import type { Execution, Rule } from '../types';
+import {
+  Header,
+  Card,
+  Button,
+  ListGroup,
+  ListRow,
+  Skeleton,
+  EmptyState,
+} from '../ui';
 
 export function RuleDetail() {
   const { id } = useParams<{ id: string }>();
@@ -29,22 +39,35 @@ export function RuleDetail() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col px-5 pb-10">
-        <Header back onBack={goBack} eyebrow="Rule" title="Loading…" />
-        <div className="space-y-3 pt-5">
-          <div className="h-4 w-4/5 rounded bg-tg-secondary-bg animate-pulse" />
-          <div className="h-28 rounded-2xl bg-tg-secondary-bg animate-pulse" />
+      <>
+        <Header back onBack={goBack} title="Rule" />
+        <div className="flex flex-col gap-3 pt-5">
+          <Skeleton className="h-4 w-3/5" />
+          <Skeleton className="h-20" />
+          <div className="grid grid-cols-2 gap-3">
+            <Skeleton className="h-16" />
+            <Skeleton className="h-16" />
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   if (!rule) {
     return (
-      <div className="flex flex-col px-5 pb-10">
-        <Header back onBack={goBack} eyebrow="Rule" title="Not found" />
-        <p className="text-tg-hint pt-5">This rule no longer exists.</p>
-      </div>
+      <>
+        <Header back onBack={goBack} title="Rule" />
+        <EmptyState
+          icon="alert"
+          title="Rule not found"
+          description="This rule no longer exists."
+          action={
+            <Button variant="secondary" onClick={goBack}>
+              Back to rules
+            </Button>
+          }
+        />
+      </>
     );
   }
 
@@ -61,82 +84,92 @@ export function RuleDetail() {
   };
 
   return (
-    <div className="flex flex-col px-5 pb-10 lg:pb-16">
-      <Header
-        back
-        onBack={goBack}
-        eyebrow="Rule"
-        title={rule.name}
-        right={<StateBadge state={rule.state} />}
-        subtitle={<span className="text-[12px] leading-snug">{formatRuleSummary(rule)}</span>}
-      />
+    <>
+      <Header back onBack={goBack} title={rule.name} right={<StateBadge state={rule.state} />} />
 
-      <div className="flex flex-col gap-5 pt-5">
-        <section className="grid grid-cols-2 gap-3">
+      <div className="flex flex-col gap-8 pt-5">
+        <Card>
+          <p className="text-[15px] font-medium leading-snug text-text-primary">
+            {formatRuleSummary(rule)}
+          </p>
+        </Card>
+
+        <Card>
+          <RuleChart rule={rule} executions={executions} />
+        </Card>
+
+        <div className="grid grid-cols-2 gap-3">
           <Stat icon="zap" label="Fired" value={`${rule.firedCount}×`} />
           <Stat
-            icon="trending-up"
+            icon="clock"
             label="Last checked"
             value={formatRelativeTime(rule.lastEvaluatedAt)}
           />
-        </section>
+        </div>
 
-        <section className="space-y-2">
-          <h2 className="text-[11px] font-semibold text-tg-hint uppercase tracking-[0.12em]">
-            History
-          </h2>
-          {executions.length === 0 ? (
-            <p className="text-sm text-tg-hint rounded-2xl bg-tg-secondary-bg ring-1 ring-black/5 p-4">
-              Hasn't fired yet.
-            </p>
-          ) : (
-            <ul className="space-y-2">
-              {executions.map((e, i) => (
-                <motion.li
-                  key={e.id}
-                  initial={{ opacity: 0, x: -8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.04 }}
-                  className="rounded-xl bg-tg-secondary-bg ring-1 ring-black/5 p-3 flex items-center justify-between gap-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                      <Icon name="check" size={16} />
-                    </div>
-                    <div>
-                      <p className="text-sm">{formatRelativeTime(e.firedAt)}</p>
-                      <p className="text-xs text-tg-hint">
-                        @ {formatPriceMinor(e.priceAtFireMinor)}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-[11px] text-emerald-700 font-medium">{e.outcome}</span>
-                </motion.li>
-              ))}
-            </ul>
-          )}
-        </section>
+        {executions.length === 0 ? (
+          <div>
+            <h2 className="px-1 mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-text-tertiary">
+              History
+            </h2>
+            <Card>
+              <p className="text-sm text-text-secondary">Hasn't fired yet.</p>
+            </Card>
+          </div>
+        ) : (
+          <ListGroup title="History">
+            {executions.map((e) => (
+              <ListRow
+                key={e.id}
+                icon="check"
+                iconTone="success"
+                label={formatRelativeTime(e.firedAt)}
+                subtitle={`@ ${formatPriceMinor(e.priceAtFireMinor)}`}
+                trailing={
+                  <span className="text-[12px] font-semibold text-success capitalize">
+                    {e.outcome}
+                  </span>
+                }
+              />
+            ))}
+          </ListGroup>
+        )}
 
-        <section className="space-y-2 pt-2">
-          <button
-            onClick={togglePause}
+        <div className="flex flex-col gap-3">
+          <Button
+            variant="secondary"
+            block
+            icon={rule.state === 'paused' ? 'play' : 'pause'}
             disabled={pause.isPending || resume.isPending}
-            className="w-full rounded-xl bg-tg-secondary-bg ring-1 ring-black/5 py-3 font-semibold active:scale-[0.98] transition-transform disabled:opacity-50 flex items-center justify-center gap-2"
+            onClick={togglePause}
           >
-            <Icon name={rule.state === 'paused' ? 'play' : 'pause'} size={16} />
             {rule.state === 'paused' ? 'Resume rule' : 'Pause rule'}
-          </button>
-          <button
-            onClick={remove}
+          </Button>
+          <Button
+            variant="danger"
+            block
+            icon="trash"
             disabled={del.isPending}
-            className="w-full rounded-xl bg-red-50 text-red-700 py-3 font-semibold active:scale-[0.98] transition-transform disabled:opacity-50 flex items-center justify-center gap-2"
+            onClick={remove}
           >
-            <Icon name="trash" size={16} />
             {del.isPending ? 'Deleting…' : 'Delete rule'}
-          </button>
-        </section>
+          </Button>
+        </div>
       </div>
-    </div>
+    </>
+  );
+}
+
+function RuleChart({ rule, executions }: { rule: Rule; executions: Execution[] }) {
+  const { points, latest } = usePriceSeries(rule.when.asset);
+  return (
+    <PriceChart
+      points={points}
+      threshold={rule.when.priceMinor}
+      op={rule.when.op}
+      executions={executions}
+      live={latest != null}
+    />
   );
 }
 
@@ -145,19 +178,21 @@ function Stat({
   label,
   value,
 }: {
-  icon: 'zap' | 'trending-up';
+  icon: 'zap' | 'clock';
   label: string;
   value: string;
 }) {
   return (
-    <div className="rounded-2xl bg-tg-secondary-bg ring-1 ring-black/5 p-3 flex items-center gap-3">
-      <div className="w-9 h-9 rounded-lg bg-brand-from/10 text-brand-from flex items-center justify-center">
+    <Card padded={false} className="p-4 flex items-center gap-3">
+      <span className="w-9 h-9 rounded-lg bg-accent-soft text-accent flex items-center justify-center shrink-0">
         <Icon name={icon} size={18} />
+      </span>
+      <div className="min-w-0">
+        <p className="text-[11px] text-text-tertiary uppercase tracking-[0.1em] font-bold">
+          {label}
+        </p>
+        <p className="font-display text-[17px] font-bold text-text-primary mt-0.5 truncate">{value}</p>
       </div>
-      <div>
-        <p className="text-[10px] text-tg-hint uppercase tracking-[0.12em] font-medium">{label}</p>
-        <p className="text-sm font-semibold mt-0.5">{value}</p>
-      </div>
-    </div>
+    </Card>
   );
 }

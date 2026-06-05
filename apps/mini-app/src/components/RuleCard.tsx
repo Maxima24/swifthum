@@ -1,47 +1,61 @@
-import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import type { Rule } from '../types';
 import { formatRelativeTime, formatRuleSummary } from '../lib/format';
 import { haptic } from '../lib/tg';
 import { StateBadge } from './StateBadge';
+import { Icon } from './Icon';
+import { cn } from '../ui';
 
-const ACCENT: Record<Rule['state'], string> = {
-  fired: 'before:bg-gradient-to-b before:from-emerald-400 before:to-emerald-500',
-  watching: 'before:bg-gradient-to-b before:from-amber-400 before:to-amber-500',
-  sleeping: 'before:bg-slate-200',
-  paused: 'before:bg-slate-100',
-};
-
-export function RuleCard({ rule, index = 0 }: { rule: Rule; index?: number }) {
+export function RuleCard({ rule }: { rule: Rule }) {
   const navigate = useNavigate();
   const dimmed = rule.state === 'paused';
 
   return (
-    <motion.button
-      layout
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
-      transition={{ delay: index * 0.04, duration: 0.28, ease: 'easeOut' }}
-      whileTap={{ scale: 0.98 }}
+    <button
       onClick={() => {
         haptic('light');
         navigate(`/rules/${rule.id}`);
       }}
-      className={`relative w-full text-left rounded-2xl bg-tg-secondary-bg/90 backdrop-blur p-4 pl-5 space-y-3 ring-1 ring-black/5 shadow-sm shadow-black/[0.02] overflow-hidden
-        before:absolute before:left-0 before:top-3 before:bottom-3 before:w-1 before:rounded-r-full ${ACCENT[rule.state]} ${
-        dimmed ? 'opacity-60' : ''
-      }`}
+      className={cn(
+        'group relative overflow-hidden flex h-full w-full flex-col text-left rounded-2xl bg-surface border border-border shadow-[var(--shadow-soft)] p-4',
+        'transition-colors duration-150 hover:border-border-strong active:scale-[0.99]',
+        dimmed && 'opacity-60',
+      )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <h3 className="font-semibold leading-snug">{rule.name}</h3>
-        <StateBadge state={rule.state} />
+      {/* Faint brand watermark, bleeding off the bottom-right corner. */}
+      <img
+        src="/mascot.png"
+        alt=""
+        aria-hidden="true"
+        className="card-watermark pointer-events-none absolute -right-4 -bottom-5 w-24 h-auto select-none"
+        draggable={false}
+      />
+
+      <div className="relative flex h-full flex-col">
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <h3 className="text-[15px] font-semibold tracking-[-0.01em] text-text-primary leading-snug min-w-0 line-clamp-2">
+            {rule.name}
+          </h3>
+          <span className="shrink-0">
+            <StateBadge state={rule.state} />
+          </span>
+        </div>
+
+        <p className="text-[13px] text-text-secondary leading-snug line-clamp-2">
+          {formatRuleSummary(rule)}
+        </p>
+
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-auto pt-3 text-[12px] text-text-tertiary">
+          <span className="inline-flex items-center gap-1">
+            <Icon name="zap" size={12} />
+            {rule.firedCount > 0 ? `Fired ${rule.firedCount}×` : 'Never fired'}
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <Icon name="clock" size={12} />
+            {formatRelativeTime(rule.lastEvaluatedAt)}
+          </span>
+        </div>
       </div>
-      <p className="text-sm text-tg-hint leading-snug">{formatRuleSummary(rule)}</p>
-      <div className="flex items-center justify-between text-xs text-tg-hint">
-        <span>{rule.firedCount > 0 ? `Fired ${rule.firedCount}×` : 'Never fired'}</span>
-        <span>Checked {formatRelativeTime(rule.lastEvaluatedAt)}</span>
-      </div>
-    </motion.button>
+    </button>
   );
 }

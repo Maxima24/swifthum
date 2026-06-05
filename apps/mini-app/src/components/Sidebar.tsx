@@ -1,8 +1,10 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Icon, type IconName } from './Icon';
 import { useWallet } from '../hooks/payments';
+import { useSidebar } from '../hooks/useSidebar';
 import { formatNgn } from '../lib/format';
 import { haptic } from '../lib/tg';
+import { Button, ThemeToggle, cn } from '../ui';
 
 const NAV: { to: string; label: string; icon: IconName }[] = [
   { to: '/rules', label: 'Rules', icon: 'rules' },
@@ -13,60 +15,136 @@ const NAV: { to: string; label: string; icon: IconName }[] = [
 export function Sidebar() {
   const navigate = useNavigate();
   const { data: wallet } = useWallet();
+  const { collapsed, toggle } = useSidebar();
 
   return (
-    <aside className="hidden lg:flex fixed left-0 top-0 bottom-0 w-64 flex-col p-6 border-r border-black/[0.06] bg-tg-bg/60 backdrop-blur-xl z-20">
-      <div className="flex items-center gap-2.5 mb-8">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-from to-brand-to text-white flex items-center justify-center shadow-md shadow-brand-from/30">
-          <Icon name="zap" size={20} strokeWidth={2.5} />
-        </div>
-        <div className="leading-tight">
-          <p className="font-bold text-[15px]">Swifthum</p>
-          <p className="text-[10px] text-tg-hint uppercase tracking-[0.12em] font-medium">
-            The Watcher
-          </p>
-        </div>
+    <aside
+      className={cn(
+        'hidden lg:flex fixed left-0 top-0 bottom-0 flex-col border-r border-border bg-surface z-20',
+        'transition-[width] duration-200 ease-out',
+        collapsed ? 'w-16 p-3 items-center' : 'w-64 p-5',
+      )}
+    >
+      {/* Brand + collapse toggle */}
+      <div
+        className={cn(
+          'flex items-center mb-8',
+          collapsed ? 'flex-col gap-3' : 'justify-between pl-1',
+        )}
+      >
+        {!collapsed && (
+          <div className="flex items-center gap-2.5 min-w-0">
+            <img
+              src="/mascot.png"
+              alt=""
+              width={32}
+              height={30}
+              className="w-8 h-auto shrink-0 select-none"
+              draggable={false}
+            />
+            <div className="leading-tight min-w-0">
+              <p className="font-display font-bold text-[18px] tracking-[-0.01em] truncate">Swifthum</p>
+              <p className="text-[11px] text-text-tertiary uppercase tracking-[0.12em] font-bold mt-0.5">
+                The Watcher
+              </p>
+            </div>
+          </div>
+        )}
+        {collapsed && (
+          <img
+            src="/mascot.png"
+            alt="Swifthum"
+            width={34}
+            height={32}
+            className="w-[34px] h-auto select-none"
+            draggable={false}
+          />
+        )}
+        <button
+          onClick={() => {
+            haptic('light');
+            toggle();
+          }}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-surface-muted hover:text-text-primary active:scale-[0.97]"
+        >
+          <Icon name={collapsed ? 'chevron-right' : 'chevron-left'} size={18} />
+        </button>
       </div>
 
-      <nav className="flex flex-col gap-1">
+      <nav className={cn('flex flex-col gap-1', collapsed && 'items-center w-full')}>
         {NAV.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
             onClick={() => haptic('light')}
+            aria-label={item.label}
+            title={collapsed ? item.label : undefined}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+              cn(
+                'flex items-center rounded-xl text-[15px] font-semibold transition-colors duration-150',
+                collapsed ? 'h-10 w-10 justify-center' : 'gap-3 px-3 py-2.5',
                 isActive
-                  ? 'bg-gradient-to-r from-brand-from/12 to-brand-to/12 text-brand-from'
-                  : 'text-tg-hint hover:text-tg-text hover:bg-tg-secondary-bg/60'
-              }`
+                  ? 'bg-accent-soft text-accent'
+                  : 'text-text-secondary hover:text-text-primary hover:bg-surface-muted',
+              )
             }
           >
-            <Icon name={item.icon} size={18} />
-            {item.label}
+            <Icon name={item.icon} size={19} />
+            {!collapsed && item.label}
           </NavLink>
         ))}
       </nav>
 
-      <button
-        onClick={() => {
-          haptic('medium');
-          navigate('/rules/new');
-        }}
-        className="mt-4 flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-br from-brand-from to-brand-to text-white px-4 py-2.5 text-sm font-semibold shadow-md shadow-brand-from/30 active:scale-[0.98] transition-transform"
-      >
-        <Icon name="plus" size={16} strokeWidth={2.5} />
-        New rule
-      </button>
+      {collapsed ? (
+        <button
+          onClick={() => {
+            haptic('medium');
+            navigate('/rules/new');
+          }}
+          aria-label="New rule"
+          title="New rule"
+          className="mt-4 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-accent text-on-accent transition-colors hover:bg-accent-hover active:scale-[0.97]"
+        >
+          <Icon name="plus" size={18} />
+        </button>
+      ) : (
+        <Button
+          className="mt-4"
+          block
+          icon="plus"
+          onClick={() => {
+            haptic('medium');
+            navigate('/rules/new');
+          }}
+        >
+          New rule
+        </Button>
+      )}
 
-      <div className="mt-auto pt-5 border-t border-black/[0.06]">
-        <p className="text-[10px] text-tg-hint uppercase tracking-[0.12em] font-medium mb-1">
-          Wallet
-        </p>
-        <p className="text-lg font-semibold tabular-nums">
-          {wallet ? formatNgn(wallet.balanceMinor) : '—'}
-        </p>
-        <p className="text-[11px] text-tg-hint mt-0.5">SwiftyEx · Mock data</p>
+      <div
+        className={cn(
+          'mt-auto w-full',
+          collapsed ? 'flex flex-col items-center gap-2 pt-5' : 'pt-5 border-t border-border',
+        )}
+      >
+        {collapsed ? (
+          <ThemeToggle />
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[11px] text-text-tertiary uppercase tracking-[0.12em] font-bold">
+                Wallet
+              </p>
+              <ThemeToggle />
+            </div>
+            <p className="text-lg font-bold tnum text-text-primary">
+              {wallet ? formatNgn(wallet.balanceMinor) : '—'}
+            </p>
+            <p className="text-[12px] text-text-tertiary mt-0.5">SwiftyEx · Sandbox</p>
+          </>
+        )}
       </div>
     </aside>
   );

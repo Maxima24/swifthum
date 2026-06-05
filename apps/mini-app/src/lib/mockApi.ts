@@ -28,6 +28,19 @@ let transactions: Transaction[] = [];
 let swiftyexAccount: SwiftyexAccountStatus = { linked: false };
 const swiftyexHoldings: SwiftyexHolding[] = [];
 
+// Live price simulation — random-walk each base price so the realtime chart
+// actually moves in mock mode. Real backend supplies real movement.
+const livePrices: Record<string, number> = { ...mockPrices } as Record<string, number>;
+function tickPrices() {
+  for (const asset of Object.keys(livePrices)) {
+    const base = (mockPrices as Record<string, number>)[asset];
+    const drift = (Math.random() - 0.5) * 0.003; // ±0.15% per tick
+    // Walk around current, but gently pull back toward base so it doesn't drift away.
+    const pull = (base - livePrices[asset]) * 0.05;
+    livePrices[asset] = Math.max(1, Math.round(livePrices[asset] * (1 + drift) + pull));
+  }
+}
+
 const delay = (ms = 200 + Math.random() * 200) => new Promise((r) => setTimeout(r, ms));
 
 function nextId(prefix: string) {
@@ -103,7 +116,10 @@ export async function mockApi<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   // ─── Prices / Insights ───────────────────────────────────────
-  if (path.startsWith('/prices/current') && method === 'GET') return mockPrices as T;
+  if (path.startsWith('/prices/current') && method === 'GET') {
+    tickPrices();
+    return { ...livePrices } as T;
+  }
   if (path === '/insights/suggested-rules' && method === 'GET') return mockSuggestions as T;
 
   // ─── Auth ────────────────────────────────────────────────────

@@ -9,12 +9,14 @@ import { Receive } from './routes/Receive';
 import { TabBar } from './components/TabBar';
 import { Sidebar } from './components/Sidebar';
 import { Shell } from './components/Shell';
+import { MobileBrandBar } from './components/MobileBrandBar';
 import { AuthGate } from './components/AuthGate';
 
 export function App() {
   return (
     <AuthGate>
       <Sidebar />
+      <MobileBrandBar />
       <Shell>
         <Routes>
           <Route path="/" element={<Navigate to="/rules" replace />} />
