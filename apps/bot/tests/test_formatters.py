@@ -6,14 +6,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.services.formatters import (
     format_balance,
+    format_history,
     format_notification,
     format_parse_confirmation,
     format_parse_unsure,
     format_payment_received,
     format_payment_sent,
+    format_portfolio,
+    format_prices,
     format_rule_fired,
     format_rule_line,
     format_rules_list,
+    format_swiftyex_account,
     format_weekly_digest,
 )
 from src.services.money import kobo_to_naira_str
@@ -147,6 +151,48 @@ class TestWeeklyDigest:
         })
         assert "<b>x</b>" not in out
         assert "&lt;b&gt;x&lt;/b&gt;" in out
+
+
+class TestMenuSections:
+    PRICES = {"USDT": 1_360_00, "BTC": 84_756_375_00, "ETH": 2_284_677_00}
+
+    def test_prices(self):
+        out = format_prices(self.PRICES)
+        assert "Prices" in out and "USDT" in out and "₦1,360.00" in out
+
+    def test_portfolio_value_math(self):
+        # 2 USDT (2 * 1e8 base units) at ₦1,360 → ₦2,720.00
+        holdings = [{"asset": "USDT", "qtyBase": 200_000_000}]
+        out = format_portfolio(holdings, self.PRICES)
+        assert "USDT" in out and "₦2,720.00" in out and "Total" in out
+
+    def test_portfolio_empty(self):
+        assert "don't hold any assets" in format_portfolio([], self.PRICES)
+        # zero-qty holdings also count as empty
+        assert "don't hold any assets" in format_portfolio(
+            [{"asset": "BTC", "qtyBase": 0}], self.PRICES
+        )
+
+    def test_history(self):
+        items = [
+            {"direction": "sent", "amountMinor": 500_000, "counterparty": {"displayName": "Bayo"}},
+            {"direction": "received", "amountMinor": 1_000_00, "counterparty": {"displayName": "Ada"}},
+        ]
+        out = format_history(items)
+        assert "Sent" in out and "Bayo" in out and "Received" in out and "Ada" in out
+
+    def test_history_empty(self):
+        assert "No payments yet" in format_history([])
+
+    def test_history_escapes_counterparty(self):
+        out = format_history(
+            [{"direction": "sent", "amountMinor": 1, "counterparty": {"displayName": "<b>x</b>"}}]
+        )
+        assert "<b>x</b>" not in out and "&lt;b&gt;x&lt;/b&gt;" in out
+
+    def test_swiftyex_linked_and_unlinked(self):
+        assert "Linked" in format_swiftyex_account({"linked": True, "label": "sandbox·dem…"})
+        assert "Not linked" in format_swiftyex_account({"linked": False})
 
 
 class TestTranscriber:

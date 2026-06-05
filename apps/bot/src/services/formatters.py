@@ -143,3 +143,75 @@ def format_parse_unsure(result: dict[str, Any]) -> str:
         f"\U0001f914 {line}\n\n"
         "Try: <i>Abeg send 5k</i> or <i>Send 10,000 to Bayo</i>"
     )
+
+
+# ─── menu hub sections (prices / portfolio / history / SwiftyEx) ────
+
+_ASSET_ORDER = ["USDT", "BTC", "ETH"]
+_QTY_SCALE = 100_000_000  # 8-dp base units per whole asset unit (mirrors QTY_SCALE)
+
+
+def format_prices(prices: dict[str, Any]) -> str:
+    lines = ["\U0001f4c8 <b>Prices</b> (NGN)"]
+    for asset in _ASSET_ORDER:
+        minor = prices.get(asset)
+        if isinstance(minor, (int, float)):
+            lines.append(f"• <b>{asset}</b>  {kobo_to_naira_str(int(minor))}")
+    return "\n".join(lines)
+
+
+def format_portfolio(holdings: list[dict[str, Any]], prices: dict[str, Any]) -> str:
+    empty = (
+        "\U0001f4ca <b>Portfolio</b>\n"
+        "You don't hold any assets yet. When a buy rule fires, your holdings show up here."
+    )
+    if not holdings:
+        return empty
+
+    by_asset = {h.get("asset"): h for h in holdings}
+    lines = ["\U0001f4ca <b>Portfolio</b>"]
+    total_minor = 0
+    for asset in _ASSET_ORDER:
+        h = by_asset.get(asset)
+        qty_base = int((h or {}).get("qtyBase", 0) or 0)
+        if qty_base <= 0:
+            continue
+        price_minor = int(prices.get(asset, 0) or 0)
+        value_minor = qty_base * price_minor // _QTY_SCALE
+        total_minor += value_minor
+        qty = qty_base / _QTY_SCALE
+        lines.append(f"• <b>{asset}</b>  {qty:.4f} · {kobo_to_naira_str(value_minor)}")
+
+    if len(lines) == 1:
+        return empty
+    lines.append(f"\n<b>Total</b>: {kobo_to_naira_str(total_minor)}")
+    return "\n".join(lines)
+
+
+def format_history(items: list[dict[str, Any]]) -> str:
+    if not items:
+        return "\U0001f9fe <b>History</b>\nNo payments yet."
+    lines = ["\U0001f9fe <b>Recent payments</b>"]
+    for t in items[:10]:
+        amount = kobo_to_naira_str(int(t.get("amountMinor", 0)))
+        name = escape(str((t.get("counterparty") or {}).get("displayName", "someone")))
+        if t.get("direction") == "sent":
+            lines.append(f"\U0001f4e4 Sent {amount} to <b>{name}</b>")
+        else:
+            lines.append(f"\U0001f4e5 Received {amount} from <b>{name}</b>")
+    return "\n".join(lines)
+
+
+def format_swiftyex_account(account: dict[str, Any]) -> str:
+    if account.get("linked"):
+        label = escape(str(account.get("label") or "Linked"))
+        return (
+            "\U0001f517 <b>SwiftyEx</b>\n"
+            f"Status: <b>Linked</b> ({label})\n"
+            "Trades from fired rules execute on your account."
+        )
+    return (
+        "\U0001f517 <b>SwiftyEx</b>\n"
+        "Status: <b>Not linked</b>\n"
+        "Link a sandbox account so rules can place simulated trades."
+    )
