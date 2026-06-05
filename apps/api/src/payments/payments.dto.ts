@@ -1,9 +1,15 @@
-import { IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
 
 export class CreateIntentDto {
   @IsInt()
   @Min(1)
   amountMinor!: number;
+
+  // The Mini App sends `currency: 'NGN'`; accept it so forbidNonWhitelisted
+  // doesn't reject the request. The service always settles in NGN regardless.
+  @IsOptional()
+  @IsIn(['NGN'])
+  currency?: 'NGN';
 }
 
 export class ParsePaymentDto {
