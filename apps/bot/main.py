@@ -16,19 +16,31 @@ from contextlib import suppress
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.types import MenuButtonWebApp, WebAppInfo
+from aiogram.types import BotCommand, MenuButtonWebApp, WebAppInfo
 from redis.asyncio import Redis
 
 from src import logger
 from src.clients.api import ApiClient
 from src.config import load
 from src.handlers import help as help_handler
+from src.handlers import menu as menu_handler
 from src.handlers import parse as parse_handler
 from src.handlers import rules as rules_handler
 from src.handlers import start as start_handler
 from src.handlers import voice as voice_handler
 from src.handlers import wallet as wallet_handler
 from src.services import notifications
+
+# Shown in Telegram's "/" command menu (set_my_commands).
+BOT_COMMANDS = [
+    BotCommand(command="menu", description="Open the action menu"),
+    BotCommand(command="balance", description="Your NGN wallet balance"),
+    BotCommand(command="rules", description="Your auto-trading rules"),
+    BotCommand(command="portfolio", description="Your SwiftyEx holdings"),
+    BotCommand(command="prices", description="Live USDT/BTC/ETH prices"),
+    BotCommand(command="history", description="Recent payments"),
+    BotCommand(command="help", description="Help & commands"),
+]
 
 
 async def amain() -> None:
@@ -46,6 +58,7 @@ async def amain() -> None:
     async with ApiClient(settings.api_base_url, settings.internal_api_secret) as api:
         dp.include_router(start_handler.build_router(settings))
         dp.include_router(help_handler.build_router(settings))
+        dp.include_router(menu_handler.build_router(api, settings))
         dp.include_router(wallet_handler.build_router(api))
         dp.include_router(rules_handler.build_router(api))
         # Voice notes (F.voice) → transcribe → same parse/confirm flow as text.
@@ -68,6 +81,13 @@ async def amain() -> None:
         except Exception as e:
             # Don't crash on a 403/etc. — the bot is still useful without the menu button.
             log.warning("set_chat_menu_button failed", error=str(e))
+
+        # Populate the Telegram "/" command menu so commands are discoverable.
+        try:
+            await bot.set_my_commands(BOT_COMMANDS)
+            log.info("bot commands set", count=len(BOT_COMMANDS))
+        except Exception as e:
+            log.warning("set_my_commands failed", error=str(e))
 
         notif_task = asyncio.create_task(notifications.run(bot, redis), name="notifications")
         log.info("bot starting polling")

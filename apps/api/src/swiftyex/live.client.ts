@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
-import { ASSETS } from '../common/assets';
 import { decryptCredential } from './credential-crypto';
+import { getMarketPrices } from './market-prices';
 import {
   type AccountStatus,
   type Holding,
@@ -29,6 +29,8 @@ export class LiveSwiftyexClient implements SwiftyexPort {
   private readonly baseUrl: string;
   private readonly appKey: string;
   private readonly encSecret: string;
+  private readonly coingeckoKey?: string;
+  private readonly cmcKey?: string;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -37,16 +39,24 @@ export class LiveSwiftyexClient implements SwiftyexPort {
     this.baseUrl = (config.get<string>('SWIFTYEX_BASE_URL') ?? '').replace(/\/$/, '');
     this.appKey = config.get<string>('SWIFTYEX_API_KEY') ?? '';
     this.encSecret = config.get<string>('SWIFTYEX_KEY_ENC_SECRET', '');
+    this.coingeckoKey = config.get<string>('COINGECKO_API_KEY') || undefined;
+    this.cmcKey = config.get<string>('CMC_API_KEY') || undefined;
   }
 
   // ─── market data (app-level auth) ───────────────────────────────
 
   async currentPrices(): Promise<PriceMapMinor> {
-    this.requireConfig();
-    // TODO: GET ${baseUrl}/market/prices?assets=USDT,BTC,ETH&quote=NGN
-    //   const res = await this.appFetch(`/market/prices?assets=${ASSETS.join(',')}&quote=NGN`);
-    //   map each asset's NGN price → minor units (×100) into PriceMapMinor.
-    return this.notImplemented('currentPrices', `/market/prices (assets: ${ASSETS.join(',')})`);
+    // The SwiftyEx market-data endpoint isn't published yet, and the Watcher needs
+    // real prices in BOTH modes — so source them from the shared market feed
+    // (CoinGecko → FX fallback → static). No requireConfig(): prices must work
+    // before keys. TODO: when SwiftyEx docs land, swap to:
+    //   GET ${baseUrl}/market/prices?assets=USDT,BTC,ETH&quote=NGN  (via this.appFetch)
+    const { prices } = await getMarketPrices({
+      coingeckoKey: this.coingeckoKey,
+      cmcKey: this.cmcKey,
+      logger: this.logger,
+    });
+    return prices;
   }
 
   // ─── trading (per-user auth) ────────────────────────────────────

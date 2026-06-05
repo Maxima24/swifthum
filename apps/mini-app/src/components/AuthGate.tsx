@@ -27,7 +27,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
         // In real mode an empty initData will be rejected by the backend.
         if (!useMocks && !initData) {
           throw new Error(
-            'No Telegram initData found. Open this Mini App inside Telegram (via @BotFather Menu Button) — or set VITE_USE_MOCKS=true for offline dev.',
+            'Couldn’t read your Telegram session. Please open SwiftHum from the menu button in @swifthum_bot (the ☰ beside the message box), not from a plain link.',
           );
         }
         const res = await api<AuthResponse>('/auth/telegram', {

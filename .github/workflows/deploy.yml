@@ -18,8 +18,6 @@ name: Deploy to EC2
 on:
   push:
     branches: [master]
-  workflow_dispatch:
-
 # Never let two deploys run at once; queue rather than cancel a build in flight.
 concurrency:
   group: deploy-prod

@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { prefixedId } from '../common/ids';
 import { type Asset, isAsset } from '../common/assets';
 import { encryptCredential } from './credential-crypto';
+import { getMarketPrices } from './market-prices';
 import {
   type AccountStatus,
   type Holding,
@@ -27,51 +28,27 @@ import {
 export class SandboxSwiftyexClient implements SwiftyexPort {
   private readonly logger = new Logger('SwiftyEx.Sandbox');
   private readonly encSecret: string;
-
-  private static readonly FALLBACK: PriceMapMinor = {
-    USDT: 1620_00n,
-    BTC: 95_000_000_00n,
-    ETH: 5_200_000_00n,
-  };
-
-  private static readonly COINGECKO_IDS: Record<keyof PriceMapMinor, string> = {
-    USDT: 'tether',
-    BTC: 'bitcoin',
-    ETH: 'ethereum',
-  };
+  private readonly coingeckoKey?: string;
+  private readonly cmcKey?: string;
 
   constructor(
     private readonly prisma: PrismaService,
     config: ConfigService,
   ) {
     this.encSecret = config.get<string>('SWIFTYEX_KEY_ENC_SECRET', 'dev-only-insecure-secret');
+    this.coingeckoKey = config.get<string>('COINGECKO_API_KEY') || undefined;
+    this.cmcKey = config.get<string>('CMC_API_KEY') || undefined;
   }
 
   // ─── market data ────────────────────────────────────────────────
 
   async currentPrices(): Promise<PriceMapMinor> {
-    const ids = Object.values(SandboxSwiftyexClient.COINGECKO_IDS).join(',');
-    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=ngn`;
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 5000);
-      const res = await fetch(url, { signal: controller.signal });
-      clearTimeout(timer);
-      if (!res.ok) throw new Error(`coingecko http ${res.status}`);
-      const body = (await res.json()) as Record<string, { ngn?: number }>;
-
-      const out: PriceMapMinor = { ...SandboxSwiftyexClient.FALLBACK };
-      for (const [asset, geckoId] of Object.entries(SandboxSwiftyexClient.COINGECKO_IDS)) {
-        const major = body[geckoId]?.ngn;
-        if (typeof major === 'number' && major > 0) {
-          out[asset as keyof PriceMapMinor] = BigInt(Math.round(major * 100));
-        }
-      }
-      return out;
-    } catch (err) {
-      this.logger.warn(`coingecko fetch failed (${(err as Error).message}); using fallback prices`);
-      return { ...SandboxSwiftyexClient.FALLBACK };
-    }
+    const { prices } = await getMarketPrices({
+      coingeckoKey: this.coingeckoKey,
+      cmcKey: this.cmcKey,
+      logger: this.logger,
+    });
+    return prices;
   }
 
   // ─── trading ────────────────────────────────────────────────────

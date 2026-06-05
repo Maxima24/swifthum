@@ -5,7 +5,8 @@ import { useBackButton } from '../hooks/useBackButton';
 import { haptic } from '../lib/tg';
 import { formatNgn } from '../lib/format';
 import { initGgwave, startListening, type MicListener } from '../lib/ggwave';
-import { QrScanner } from '../components/QrScanner';
+import { friendlyRedeemError } from '../lib/errors';
+import { QrScanPanel } from '../components/QrScanPanel';
 import { Icon } from '../components/Icon';
 import type { RedemptionResult } from '../types';
 import { Header, Card, Button, Segmented, Spinner, EmptyState } from '../ui';
@@ -25,15 +26,19 @@ export function Receive() {
   useBackButton(goBack);
 
   const tryRedeem = useCallback(
-    async (token: string) => {
+    async (rawToken: string) => {
       if (result || redeem.isPending) return;
+      // Scanners / paste can append whitespace or newlines; even one stray char
+      // breaks the HMAC and the API returns 401 invalid_or_expired.
+      const token = rawToken.trim();
+      if (!token) return;
       try {
         const res = await redeem.mutateAsync(token);
         haptic('success');
         setResult(res);
-      } catch (e: any) {
+      } catch (e) {
         haptic('error');
-        setError(String(e?.message ?? e));
+        setError(friendlyRedeemError(e));
       }
     },
     [result, redeem],
@@ -154,9 +159,11 @@ export function Receive() {
           </Card>
         ) : (
           <Card>
-            <QrScanner
+            <QrScanPanel
               onResult={tryRedeem}
-              onError={(e: any) => setError(String(e?.message ?? e))}
+              onError={() =>
+                setError("Couldn't access the camera — paste the token from the sender instead.")
+              }
             />
           </Card>
         )}

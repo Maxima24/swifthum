@@ -14,7 +14,7 @@ docker compose -f infrastructure/docker-compose.prod.yml \
                up -d --build
 ```
 
-DNS: two A records (`${DOMAIN}` and `api.${DOMAIN}`) → VPS IP, **proxied through Cloudflare** (orange cloud). Cloudflare SSL/TLS mode: **Flexible**. Lock down port 80 to Cloudflare IPs only via ufw (see below — this is **not optional**).
+DNS: two A records (`swifthum.${DOMAIN}` and `swifthum-api.${DOMAIN}`) → VPS IP, **proxied through Cloudflare** (orange cloud). Cloudflare SSL/TLS mode: **Flexible**. Lock down port 80 to Cloudflare IPs only via ufw (see below — this is **not optional**).
 
 ---
 
@@ -70,10 +70,11 @@ sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile \
 
 In Cloudflare's dashboard for your zone:
 
-1. **DNS records** — two A records, **proxy on** (orange cloud):
+1. **DNS records** — two A records, **proxy on** (orange cloud). These must match
+   the edge `server_name`s in `infrastructure/nginx/templates/edge.conf.template`:
    ```
-   ${DOMAIN}        A    <vps public ip>    Proxied
-   api.${DOMAIN}    A    <vps public ip>    Proxied
+   swifthum.${DOMAIN}        A    <vps public ip>    Proxied
+   swifthum-api.${DOMAIN}    A    <vps public ip>    Proxied
    ```
 2. **SSL/TLS → Overview** — mode = **Flexible**.
 3. **SSL/TLS → Edge Certificates** — enable **Always Use HTTPS** and **Automatic HTTPS Rewrites**.
@@ -149,11 +150,11 @@ docker compose -f infrastructure/docker-compose.prod.yml logs migrate
 
 ```bash
 # 1. API responding through the tunnel
-curl -fsSL "https://api.${DOMAIN}/health"
+curl -fsSL "https://swifthum-api.${DOMAIN}/health"
 # → {"status":"ok",...}
 
 # 2. Mini App serving
-curl -fsI "https://${DOMAIN}/" | head -1
+curl -fsI "https://swifthum.${DOMAIN}/" | head -1
 # → HTTP/2 200
 
 # 3. All containers healthy
@@ -163,7 +164,7 @@ docker compose -f infrastructure/docker-compose.prod.yml ps
 
 In Telegram:
 1. Open `@swifthum_bot` → tap the chat menu → "Open SwiftHum"
-2. Mini App loads through `https://${DOMAIN}` → AuthGate exchanges initData → wallet shows ₦25,000
+2. Mini App loads through `https://swifthum.${DOMAIN}` → AuthGate exchanges initData → wallet shows ₦25,000
 3. `/balance` in chat → ₦25,000
 4. Create a rule in the Mini App, `/rules` in chat → shows it with ⏸ Pause inline
 5. `Abeg send 5k` → confirmation card → "Open & chirp" deep-links into Mini App's Send screen with ₦5,000 prefilled
@@ -207,7 +208,7 @@ Common gotchas:
 - **`Can't reach database server`** after Docker Desktop suspend/resume → `docker restart swifthum-postgres-prod` rebinds the port cleanly (WSL2 port-relay race).
 - **Bot says "Couldn't fetch your balance"** → API down or unreachable from the bot container. `docker compose logs api`. The bot's per-user JWT cache + retry-on-401 are forgiving; the API just needs to come back.
 - **Telegram WebApp button greys out / nothing happens** → `MINIAPP_URL` in `.env` doesn't match the live URL, OR Cloudflare proxy is off (grey cloud), OR ufw is blocking Cloudflare.
-- **502 from `https://api.${DOMAIN}/health`** → check `docker compose ps`; api or postgres unhealthy. Tail their logs.
+- **502 from `https://swifthum-api.${DOMAIN}/health`** → check `docker compose ps`; api or postgres unhealthy. Tail their logs.
 
 ---
 

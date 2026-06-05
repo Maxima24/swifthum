@@ -15,6 +15,15 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --filter mini-app...
 
 COPY apps/mini-app ./apps/mini-app
+
+# Vite inlines import.meta.env.VITE_* at BUILD time. Without these the bundle
+# defaults to mock mode + localhost API (api.ts), so the deployed app never talks
+# to the real backend. Passed from docker-compose.prod.yml build.args.
+ARG VITE_API_URL
+ARG VITE_USE_MOCKS=false
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_USE_MOCKS=$VITE_USE_MOCKS
+
 RUN pnpm --filter mini-app build
 
 
