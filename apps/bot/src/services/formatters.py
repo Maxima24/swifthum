@@ -42,7 +42,7 @@ def format_rule_fired(data: dict[str, Any]) -> str:
 def format_payment_received(data: dict[str, Any]) -> str:
     amount = kobo_to_naira_str(int(data.get("amountMinor", 0)))
     sender = escape(str(data.get("counterpartyName", "someone")))
-    return f"\U0001f4b8 Received <b>{amount}</b> from <b>{sender}</b>."
+    return f"\U0001f4b8 Received <b>{amount}</b> from <b>{sender}</b> via SwiftHum."
 
 
 def format_payment_sent(data: dict[str, Any]) -> str:
