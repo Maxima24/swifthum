@@ -7,7 +7,7 @@ import { haptic } from '../lib/tg';
 import { formatNgn } from '../lib/format';
 import { initGgwave, startListening, type MicListener } from '../lib/ggwave';
 import { friendlyRedeemError } from '../lib/errors';
-import { QrScanner } from '../components/QrScanner';
+import { QrScanPanel } from '../components/QrScanPanel';
 import { Header } from '../components/Header';
 import { Icon } from '../components/Icon';
 import type { RedemptionResult } from '../types';
@@ -207,7 +207,7 @@ export function Receive() {
               exit={{ opacity: 0, y: -6 }}
               className="rounded-3xl bg-tg-secondary-bg ring-1 ring-black/5 p-4"
             >
-              <QrScanner
+              <QrScanPanel
                 onResult={tryRedeem}
                 onError={() =>
                   setError("Couldn't access the camera — paste the token from the sender instead.")

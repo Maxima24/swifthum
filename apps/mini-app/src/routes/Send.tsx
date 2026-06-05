@@ -7,6 +7,7 @@ import { useMainButton } from '../hooks/useMainButton';
 import { haptic } from '../lib/tg';
 import { formatNgn } from '../lib/format';
 import { encode, initGgwave, playSamples } from '../lib/ggwave';
+import { friendlySendError } from '../lib/errors';
 import { QrDisplay } from '../components/QrDisplay';
 import { Header } from '../components/Header';
 import { Icon } from '../components/Icon';
@@ -38,6 +39,7 @@ export function Send() {
   const [intent, setIntent] = useState<PaymentIntent | null>(null);
   const [soundReady, setSoundReady] = useState(false);
   const [soundError, setSoundError] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(30);
 
   const amountMinor = Math.round(parseFloat(amountNgn || '0') * 100);
@@ -52,12 +54,14 @@ export function Send() {
   const start = useCallback(async () => {
     if (!isValid) return;
     haptic('medium');
+    setCreateError(null);
     try {
       const result = await create.mutateAsync({ amountMinor });
       setIntent(result);
       setStage('broadcast');
-    } catch {
+    } catch (e) {
       haptic('error');
+      setCreateError(friendlySendError(e));
     }
   }, [isValid, create, amountMinor]);
 
@@ -140,7 +144,10 @@ export function Send() {
               type="number"
               inputMode="decimal"
               value={amountNgn}
-              onChange={(e) => setAmountNgn(e.target.value)}
+              onChange={(e) => {
+                setAmountNgn(e.target.value);
+                if (createError) setCreateError(null);
+              }}
               className="w-full rounded-2xl bg-tg-secondary-bg ring-1 ring-black/5 px-4 py-6 text-4xl font-semibold text-center tabular-nums outline-none focus:ring-2 focus:ring-tg-button"
             />
           </label>
@@ -159,6 +166,13 @@ export function Send() {
               </button>
             ))}
           </div>
+
+          {createError && (
+            <div className="rounded-2xl bg-red-50 text-red-700 ring-1 ring-red-200 p-3 text-sm flex items-start gap-2">
+              <Icon name="alert" size={16} className="shrink-0 mt-0.5" />
+              <span>{createError}</span>
+            </div>
+          )}
 
           <button
             onClick={start}
