@@ -1,4 +1,6 @@
 import { Component, type ReactNode } from 'react';
+import { Icon } from './Icon';
+import { Button } from '../ui';
 
 interface Props {
   children: ReactNode;
@@ -28,18 +30,19 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     if (!this.state.error) return this.props.children;
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-8 text-center">
-        <div className="text-4xl">😵</div>
-        <p className="font-semibold">Something went wrong</p>
-        <p className="text-sm text-tg-hint max-w-xs break-words">
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 px-8 text-center">
+        <div className="w-14 h-14 rounded-2xl bg-danger-soft text-danger flex items-center justify-center">
+          <Icon name="alert" size={26} />
+        </div>
+        <p className="text-[20px] font-bold tracking-[-0.01em] text-text-primary">
+          Something went wrong
+        </p>
+        <p className="text-sm text-text-secondary max-w-xs break-words leading-relaxed">
           {this.state.error.message}
         </p>
-        <button
-          onClick={() => window.location.reload()}
-          className="rounded-xl bg-tg-button text-tg-button-text px-5 py-2 text-sm font-semibold"
-        >
+        <Button className="mt-2" onClick={() => window.location.reload()}>
           Reload
-        </button>
+        </Button>
       </div>
     );
   }

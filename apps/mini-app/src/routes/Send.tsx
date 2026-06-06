@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
-import { useCreateIntent, useWallet, useCancelIntent, useIntentStatus } from '../hooks/payments';
+import {
+  useCreateIntent,
+  useWallet,
+  useCancelIntent,
+  useIntentStatus,
+} from '../hooks/payments';
 import { useBackButton } from '../hooks/useBackButton';
 import { useMainButton } from '../hooks/useMainButton';
 import { haptic } from '../lib/tg';
@@ -9,17 +13,23 @@ import { formatNgn } from '../lib/format';
 import { encode, initGgwave, playSamples } from '../lib/ggwave';
 import { friendlySendError } from '../lib/errors';
 import { QrDisplay } from '../components/QrDisplay';
-import { Header } from '../components/Header';
 import { Icon } from '../components/Icon';
 import type { PaymentIntent } from '../types';
+import {
+  Header,
+  Card,
+  Button,
+  Segmented,
+  AmountInput,
+  Spinner,
+  EmptyState,
+} from '../ui';
 
 type Stage = 'amount' | 'broadcast' | 'done';
 type Mode = 'sound' | 'qr';
 
-/**
- * Lazy initial amount from `?amount=<kobo>` query param (used by the bot's NL
- * parse deep link). Falls back to '5000' for any malformed/out-of-range input.
- */
+const QUICK_AMOUNTS = [1000, 5000, 10000, 25000, 50000, 100000];
+
 function initialAmountFromQuery(searchParams: URLSearchParams): string {
   const raw = searchParams.get('amount');
   if (!raw) return '5000';
@@ -35,7 +45,9 @@ export function Send() {
   const create = useCreateIntent();
   const cancel = useCancelIntent();
   const [stage, setStage] = useState<Stage>('amount');
-  const [amountNgn, setAmountNgn] = useState<string>(() => initialAmountFromQuery(searchParams));
+  const [amountNgn, setAmountNgn] = useState<string>(() =>
+    initialAmountFromQuery(searchParams),
+  );
   const [mode, setMode] = useState<Mode>('sound');
   const [intent, setIntent] = useState<PaymentIntent | null>(null);
   const [soundReady, setSoundReady] = useState(false);
@@ -54,10 +66,7 @@ export function Send() {
 
   const amountMinor = Math.round(parseFloat(amountNgn || '0') * 100);
   const isValid =
-    amountMinor > 0 &&
-    !!wallet &&
-    amountMinor <= wallet.balanceMinor &&
-    !create.isPending;
+    amountMinor > 0 && !!wallet && amountMinor <= wallet.balanceMinor && !create.isPending;
 
   const start = useCallback(async () => {
     if (!isValid) return;
@@ -149,17 +158,16 @@ export function Send() {
 
   if (stage === 'amount') {
     return (
-      <div className="flex flex-col px-5 pb-10 lg:pb-16">
+      <>
         <Header
           back
-          onBack={() => navigate('/pay')}
-          eyebrow="Send"
-          title="How much?"
+          onBack={() => void cancelAndLeave()}
+          title="Send"
           subtitle={
             wallet ? (
-              <span className="inline-flex items-center gap-1 text-[12px]">
+              <span className="tnum">
                 Balance{' '}
-                <span className="text-tg-text font-semibold tabular-nums">
+                <span className="font-semibold text-text-primary">
                   {formatNgn(wallet.balanceMinor)}
                 </span>
               </span>
@@ -167,12 +175,12 @@ export function Send() {
           }
         />
 
-        <div className="flex flex-col gap-5 pt-5">
-          <label className="block space-y-2">
-            <span className="text-[11px] font-semibold text-tg-hint uppercase tracking-[0.12em]">
+        <div className="flex flex-col gap-6 pt-5">
+          <div>
+            <p className="px-1 mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-text-tertiary">
               Amount (₦)
-            </span>
-            <input
+            </p>
+            <AmountInput
               type="number"
               inputMode="decimal"
               value={amountNgn}
@@ -180,214 +188,151 @@ export function Send() {
                 setAmountNgn(e.target.value);
                 if (createError) setCreateError(null);
               }}
-              className="w-full rounded-2xl bg-tg-secondary-bg ring-1 ring-black/5 px-4 py-6 text-4xl font-semibold text-center tabular-nums outline-none focus:ring-2 focus:ring-tg-button"
             />
-          </label>
+          </div>
 
-          <div className="grid grid-cols-3 gap-2">
-            {[1000, 5000, 10000, 25000, 50000, 100000].map((v) => (
-              <button
+          <div className="grid grid-cols-3 gap-2.5">
+            {QUICK_AMOUNTS.map((v) => (
+              <Button
                 key={v}
+                variant="secondary"
                 onClick={() => {
                   haptic('light');
                   setAmountNgn(String(v));
                 }}
-                className="rounded-xl bg-tg-secondary-bg ring-1 ring-black/5 py-2.5 text-sm font-medium active:scale-95 transition-transform"
               >
                 ₦{v.toLocaleString()}
-              </button>
+              </Button>
             ))}
           </div>
 
           {createError && (
-            <div className="rounded-2xl bg-red-50 text-red-700 ring-1 ring-red-200 p-3 text-sm flex items-start gap-2">
-              <Icon name="alert" size={16} className="shrink-0 mt-0.5" />
-              <span>{createError}</span>
-            </div>
+            <Card padded={false} className="p-3 bg-danger-soft border-0 flex items-start gap-2">
+              <Icon name="alert" size={16} className="shrink-0 mt-0.5 text-danger" />
+              <span className="text-sm text-danger">{createError}</span>
+            </Card>
           )}
 
-          <button
-            onClick={start}
-            disabled={!isValid}
-            className="w-full rounded-2xl bg-gradient-to-br from-brand-from to-brand-to text-white px-6 py-4 font-semibold shadow-lg shadow-brand-from/30 disabled:opacity-40 active:scale-[0.98] transition-transform"
-          >
-            {create.isPending ? 'Creating…' : 'Generate token'}
-          </button>
-
-          <button
-            onClick={() => {
-              haptic('light');
-              navigate('/pay');
-            }}
-            className="rounded-xl bg-tg-secondary-bg ring-1 ring-black/5 py-3 font-medium active:scale-[0.98] transition-transform"
-          >
-            Cancel
-          </button>
+          <div className="flex flex-col gap-3">
+            <Button size="lg" block disabled={!isValid} onClick={start}>
+              {create.isPending ? 'Creating…' : 'Generate token'}
+            </Button>
+            <Button variant="ghost" block onClick={() => void cancelAndLeave()}>
+              Cancel
+            </Button>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="flex flex-col px-5 pb-10 lg:pb-16">
+    <>
       <Header
         back
         onBack={() => void cancelAndLeave()}
-        eyebrow={paid ? 'Sent' : 'Broadcasting'}
         title={formatNgn(amountMinor)}
         subtitle={
-          <span className="text-[12px]">
-            {paid
-              ? receiverName
-                ? `Received by ${receiverName}`
-                : 'Received'
-              : stage === 'done'
-                ? 'Token expired'
-                : `Expires in ${secondsLeft}s`}
-          </span>
+          paid
+            ? receiverName
+              ? `Received by ${receiverName}`
+              : 'Received'
+            : stage === 'done'
+              ? 'Token expired'
+              : `Expires in ${secondsLeft}s`
         }
       />
 
       {paid ? (
-        <div className="flex flex-col gap-5 pt-5">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.92 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="rounded-3xl bg-tg-secondary-bg ring-1 ring-black/5 p-8 flex flex-col items-center gap-4 min-h-[260px] justify-center"
-          >
-            <motion.div
-              initial={{ scale: 0.6 }}
-              animate={{ scale: 1 }}
-              transition={{ type: 'spring', stiffness: 220, damping: 15 }}
-              className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-white flex items-center justify-center shadow-xl shadow-emerald-500/40"
-            >
-              <Icon name="check" size={36} strokeWidth={3} />
-            </motion.div>
-            <p className="text-lg font-semibold">Paid {formatNgn(amountMinor)}</p>
-            <p className="text-sm text-tg-hint text-center">
+        <div className="flex flex-col items-center text-center pt-12 gap-6">
+          <span className="w-20 h-20 rounded-full bg-success-soft text-success flex items-center justify-center">
+            <Icon name="check" size={40} strokeWidth={3} />
+          </span>
+          <div>
+            <p className="font-display text-[34px] font-bold tracking-[-0.02em] tnum text-text-primary">
+              {formatNgn(amountMinor)}
+            </p>
+            <p className="text-sm text-text-secondary mt-1">
               {receiverName ? `Received by ${receiverName}.` : 'Received.'}
             </p>
-          </motion.div>
-
-          <button
-            onClick={() => {
-              haptic('light');
-              navigate('/pay');
-            }}
-            className="rounded-xl bg-gradient-to-br from-brand-from to-brand-to text-white py-3 font-semibold active:scale-[0.98] transition-transform"
-          >
+          </div>
+          <Button size="lg" onClick={() => navigate('/pay')}>
             Done
-          </button>
+          </Button>
         </div>
       ) : (
-      <div className="flex flex-col gap-5 pt-5">
-        <div className="grid grid-cols-2 gap-1 rounded-full bg-tg-secondary-bg ring-1 ring-black/5 p-1">
-          {(['sound', 'qr'] as Mode[]).map((m) => (
-            <button
-              key={m}
-              onClick={() => {
-                haptic('light');
-                setMode(m);
-              }}
-              className={`relative rounded-full py-2 text-sm font-medium transition-colors ${
-                mode === m ? 'text-tg-text' : 'text-tg-hint'
-              }`}
-            >
-              {mode === m && (
-                <motion.span
-                  layoutId="send-mode"
-                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                  className="absolute inset-0 rounded-full bg-tg-bg shadow-sm shadow-black/5 ring-1 ring-black/5 -z-10"
-                />
-              )}
-              <span className="inline-flex items-center gap-1.5">
-                <Icon name={m === 'sound' ? 'speaker' : 'qr'} size={14} />
-                {m === 'sound' ? 'Sound' : 'QR code'}
-              </span>
-            </button>
-          ))}
-        </div>
+        <div className="flex flex-col gap-6 pt-5">
+          <Segmented<Mode>
+            value={mode}
+            onChange={(m) => {
+              haptic('light');
+              setMode(m);
+            }}
+            options={[
+              { value: 'sound', label: 'Sound', icon: 'speaker' },
+              { value: 'qr', label: 'QR code', icon: 'qr' },
+            ]}
+          />
 
-        <AnimatePresence mode="wait">
           {mode === 'sound' ? (
-            <motion.div
-              key="sound"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              className="rounded-3xl bg-tg-secondary-bg ring-1 ring-black/5 p-8 flex flex-col items-center gap-5 min-h-[260px] justify-center"
-            >
+            <Card padded={false} className="p-8 min-h-[280px] flex items-center justify-center">
               {soundError ? (
-                <>
-                  <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
-                    <Icon name="alert" size={28} />
-                  </div>
-                  <p className="text-sm text-tg-hint text-center max-w-xs">{soundError}</p>
-                  <button
-                    onClick={() => {
-                      haptic('light');
-                      setMode('qr');
-                    }}
-                    className="rounded-xl bg-tg-button text-tg-button-text px-5 py-2 text-sm font-semibold"
-                  >
-                    Switch to QR
-                  </button>
-                </>
+                <EmptyState
+                  icon="alert"
+                  title="Sound unavailable"
+                  description={soundError}
+                  action={
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        haptic('light');
+                        setMode('qr');
+                      }}
+                    >
+                      Switch to QR
+                    </Button>
+                  }
+                />
               ) : (
-                <>
-                  <div className="relative w-32 h-32 flex items-center justify-center">
-                    <motion.span
-                      animate={{ scale: [1, 1.6], opacity: [0.6, 0] }}
-                      transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut' }}
-                      className="absolute inset-0 rounded-full bg-brand-from/25"
-                    />
-                    <motion.span
-                      animate={{ scale: [1, 1.4], opacity: [0.4, 0] }}
-                      transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut', delay: 0.4 }}
-                      className="absolute inset-2 rounded-full bg-brand-to/25"
-                    />
-                    <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-brand-from to-brand-to text-white flex items-center justify-center shadow-lg shadow-brand-from/40">
-                      <Icon name="speaker" size={28} />
-                    </div>
+                <div className="flex flex-col items-center gap-5 text-center">
+                  <span className="w-20 h-20 rounded-full bg-accent-soft text-accent flex items-center justify-center">
+                    <Icon name="speaker" size={32} />
+                  </span>
+                  <div className="flex items-center gap-2 text-text-secondary">
+                    {soundReady && <Spinner size={16} />}
+                    <p className="text-sm max-w-[16rem] leading-snug">
+                      {soundReady
+                        ? 'Broadcasting ultrasonic chirp. Keep the receiver within ~6 feet.'
+                        : 'Warming up audio…'}
+                    </p>
                   </div>
-                  <p className="text-sm text-tg-hint text-center max-w-xs leading-snug">
-                    {soundReady
-                      ? 'Broadcasting ultrasonic chirp. Keep receiver within ~6 feet.'
-                      : 'Warming up audio…'}
-                  </p>
-                </>
+                </div>
               )}
-            </motion.div>
+            </Card>
           ) : (
-            <motion.div
-              key="qr"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              className="rounded-3xl bg-tg-secondary-bg ring-1 ring-black/5 p-6 flex flex-col items-center gap-4"
-            >
+            <Card className="flex flex-col items-center gap-4">
               {intent && <QrDisplay value={intent.token} size={220} />}
-              <p className="text-sm text-tg-hint text-center max-w-xs">
+              <p className="text-sm text-text-secondary text-center max-w-[16rem]">
                 Receiver opens Pay → Receive → Scan QR.
               </p>
-            </motion.div>
+            </Card>
           )}
-        </AnimatePresence>
 
-        <p className="text-xs text-tg-hint text-center px-2 leading-snug">
-          {formatNgn(amountMinor)} is reserved — instantly refunded if you cancel or it isn’t
-          received.
-        </p>
+          <p className="text-xs text-text-tertiary text-center px-2 leading-snug">
+            {formatNgn(amountMinor)} is reserved — instantly refunded if you cancel or it isn’t
+            received.
+          </p>
 
-        <button
-          onClick={() => void cancelAndLeave()}
-          disabled={cancel.isPending}
-          className="rounded-xl bg-tg-secondary-bg ring-1 ring-black/5 py-3 font-medium active:scale-[0.98] transition-transform disabled:opacity-60"
-        >
-          {cancel.isPending ? 'Refunding…' : 'Cancel & refund'}
-        </button>
-      </div>
+          <Button
+            variant="secondary"
+            block
+            disabled={cancel.isPending}
+            onClick={() => void cancelAndLeave()}
+          >
+            {cancel.isPending ? 'Refunding…' : 'Cancel & refund'}
+          </Button>
+        </div>
       )}
-    </div>
+    </>
   );
 }

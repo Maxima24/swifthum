@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
 import { useRedeem } from '../hooks/payments';
 import { useBackButton } from '../hooks/useBackButton';
 import { haptic } from '../lib/tg';
@@ -8,9 +7,9 @@ import { formatNgn } from '../lib/format';
 import { initGgwave, startListening, type MicListener } from '../lib/ggwave';
 import { friendlyRedeemError } from '../lib/errors';
 import { QrScanPanel } from '../components/QrScanPanel';
-import { Header } from '../components/Header';
 import { Icon } from '../components/Icon';
 import type { RedemptionResult } from '../types';
+import { Header, Card, Button, Segmented, Spinner, EmptyState } from '../ui';
 
 type Mode = 'listen' | 'scan';
 
@@ -65,9 +64,7 @@ export function Receive() {
         setListening(true);
       } catch (e: any) {
         if (!cancelled) {
-          setListenError(
-            String(e?.message ?? 'Mic access denied') + ' — switch to Scan QR.',
-          );
+          setListenError(String(e?.message ?? 'Mic access denied') + ' — switch to Scan QR.');
         }
       }
     })();
@@ -84,156 +81,104 @@ export function Receive() {
 
   if (result) {
     return (
-      <div className="flex flex-col px-5 pb-10">
-        <Header
-          back
-          onBack={goBack}
-          eyebrow="Received"
-          title={formatNgn(result.amountMinor)}
-          subtitle={<span className="text-[12px]">from {result.sender.displayName}</span>}
-        />
-        <div className="flex flex-col items-center gap-6 pt-12">
-          <motion.div
-            initial={{ scale: 0.6, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: 'spring', stiffness: 220, damping: 15 }}
-            className="w-28 h-28 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-white flex items-center justify-center shadow-xl shadow-emerald-500/40"
-          >
-            <Icon name="check" size={48} strokeWidth={3} />
-          </motion.div>
-          <button
-            onClick={() => {
-              haptic('light');
-              navigate('/pay');
-            }}
-            className="rounded-2xl bg-gradient-to-br from-brand-from to-brand-to text-white px-8 py-3 font-semibold shadow-lg shadow-brand-from/30 active:scale-[0.98] transition-transform"
-          >
+      <>
+        <Header back onBack={goBack} title="Received" />
+        <div className="flex flex-col items-center text-center pt-16 gap-6">
+          <span className="w-20 h-20 rounded-full bg-success-soft text-success flex items-center justify-center">
+            <Icon name="check" size={40} strokeWidth={3} />
+          </span>
+          <div>
+            <p className="font-display text-[34px] font-bold tracking-[-0.02em] tnum text-text-primary">
+              {formatNgn(result.amountMinor)}
+            </p>
+            <p className="text-sm text-text-secondary mt-1">
+              from {result.sender.displayName}
+            </p>
+          </div>
+          <Button size="lg" onClick={goBack}>
             Done
-          </button>
+          </Button>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="flex flex-col px-5 pb-10 lg:pb-16">
-      <Header back onBack={goBack} eyebrow="Receive" title="Waiting for payment" />
+    <>
+      <Header back onBack={goBack} title="Receive" subtitle="Waiting for payment" />
 
-      <div className="flex flex-col gap-5 pt-5">
-        <div className="grid grid-cols-2 gap-1 rounded-full bg-tg-secondary-bg ring-1 ring-black/5 p-1">
-          {(['listen', 'scan'] as Mode[]).map((m) => (
-            <button
-              key={m}
-              onClick={() => {
-                haptic('light');
-                setError(null);
-                setListenError(null);
-                setMode(m);
-              }}
-              className={`relative rounded-full py-2 text-sm font-medium transition-colors ${
-                mode === m ? 'text-tg-text' : 'text-tg-hint'
-              }`}
-            >
-              {mode === m && (
-                <motion.span
-                  layoutId="receive-mode"
-                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                  className="absolute inset-0 rounded-full bg-tg-bg shadow-sm shadow-black/5 ring-1 ring-black/5 -z-10"
-                />
-              )}
-              <span className="inline-flex items-center gap-1.5">
-                <Icon name={m === 'listen' ? 'mic' : 'camera'} size={14} />
-                {m === 'listen' ? 'Listen' : 'Scan QR'}
-              </span>
-            </button>
-          ))}
-        </div>
+      <div className="flex flex-col gap-6 pt-5">
+        <Segmented<Mode>
+          value={mode}
+          onChange={(m) => {
+            haptic('light');
+            setError(null);
+            setListenError(null);
+            setMode(m);
+          }}
+          options={[
+            { value: 'listen', label: 'Listen', icon: 'mic' },
+            { value: 'scan', label: 'Scan QR', icon: 'camera' },
+          ]}
+        />
 
-        <AnimatePresence mode="wait">
-          {mode === 'listen' ? (
-            <motion.div
-              key="listen"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              className="rounded-3xl bg-tg-secondary-bg ring-1 ring-black/5 p-8 flex flex-col items-center gap-5 min-h-[260px] justify-center"
-            >
-              {listenError ? (
-                <>
-                  <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
-                    <Icon name="alert" size={28} />
-                  </div>
-                  <p className="text-sm text-tg-hint text-center max-w-xs">{listenError}</p>
-                  <button
+        {mode === 'listen' ? (
+          <Card padded={false} className="p-8 min-h-[280px] flex items-center justify-center">
+            {listenError ? (
+              <EmptyState
+                icon="alert"
+                title="Mic unavailable"
+                description={listenError}
+                action={
+                  <Button
+                    variant="secondary"
                     onClick={() => {
                       haptic('light');
                       setMode('scan');
                     }}
-                    className="rounded-xl bg-tg-button text-tg-button-text px-5 py-2 text-sm font-semibold"
                   >
                     Switch to Scan QR
-                  </button>
-                </>
-              ) : (
-                <>
-                  <div className="relative w-32 h-32 flex items-center justify-center">
-                    <motion.span
-                      animate={{ scale: [1, 1.6], opacity: [0.5, 0] }}
-                      transition={{ duration: 1.5, repeat: Infinity, ease: 'easeOut' }}
-                      className="absolute inset-0 rounded-full bg-amber-400/30"
-                    />
-                    <motion.span
-                      animate={{ scale: [1, 1.4], opacity: [0.4, 0] }}
-                      transition={{ duration: 1.5, repeat: Infinity, ease: 'easeOut', delay: 0.4 }}
-                      className="absolute inset-2 rounded-full bg-amber-500/30"
-                    />
-                    <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 text-white flex items-center justify-center shadow-lg shadow-amber-500/40">
-                      <Icon name="mic" size={28} />
-                    </div>
-                  </div>
-                  <p className="text-sm text-tg-hint text-center max-w-xs leading-snug">
-                    {listening
-                      ? 'Listening for ultrasonic chirp from sender…'
-                      : 'Warming up mic…'}
-                  </p>
-                </>
-              )}
-            </motion.div>
-          ) : (
-            <motion.div
-              key="scan"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              className="rounded-3xl bg-tg-secondary-bg ring-1 ring-black/5 p-4"
-            >
-              <QrScanPanel
-                onResult={tryRedeem}
-                onError={() =>
-                  setError("Couldn't access the camera — paste the token from the sender instead.")
+                  </Button>
                 }
               />
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {error && (
-          <div className="rounded-2xl bg-red-50 text-red-700 ring-1 ring-red-200 p-3 text-sm flex items-start gap-2">
-            <Icon name="alert" size={16} className="shrink-0 mt-0.5" />
-            <span>{error}</span>
-          </div>
+            ) : (
+              <div className="flex flex-col items-center gap-5 text-center">
+                <span className="w-20 h-20 rounded-full bg-accent-soft text-accent flex items-center justify-center">
+                  <Icon name="mic" size={32} />
+                </span>
+                <div className="flex items-center gap-2 text-text-secondary">
+                  {listening && <Spinner size={16} />}
+                  <p className="text-sm max-w-[16rem] leading-snug">
+                    {listening
+                      ? 'Listening for the ultrasonic chirp from the sender…'
+                      : 'Warming up mic…'}
+                  </p>
+                </div>
+              </div>
+            )}
+          </Card>
+        ) : (
+          <Card>
+            <QrScanPanel
+              onResult={tryRedeem}
+              onError={() =>
+                setError("Couldn't access the camera — paste the token from the sender instead.")
+              }
+            />
+          </Card>
         )}
 
-        <button
-          onClick={() => {
-            haptic('light');
-            navigate('/pay');
-          }}
-          className="rounded-xl bg-tg-secondary-bg ring-1 ring-black/5 py-3 font-medium active:scale-[0.98] transition-transform"
-        >
+        {error && (
+          <Card padded={false} className="p-3 bg-danger-soft border-0 flex items-start gap-2">
+            <Icon name="alert" size={16} className="shrink-0 mt-0.5 text-danger" />
+            <span className="text-sm text-danger">{error}</span>
+          </Card>
+        )}
+
+        <Button variant="ghost" block onClick={goBack}>
           Cancel
-        </button>
+        </Button>
       </div>
-    </div>
+    </>
   );
 }
