@@ -1,4 +1,8 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": ["node_modules", "test", "dist", "**/*spec.ts"]
+  // rootDir pins the emit root to src/ so the entry is always dist/main.js,
+  // regardless of stray .ts files elsewhere (e.g. prisma/backfill-ledger.ts).
+  // prisma/ is excluded from the build — that script runs standalone via ts-node.
+  "compilerOptions": { "rootDir": "./src" },
+  "exclude": ["node_modules", "test", "dist", "prisma", "**/*spec.ts"]
 }
