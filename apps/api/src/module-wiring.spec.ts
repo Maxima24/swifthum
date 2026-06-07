@@ -5,6 +5,7 @@ import { LedgerModule } from './ledger/ledger.module';
 import { ReceiptsModule } from './receipts/receipts.module';
 import { GiftsModule } from './gifts/gifts.module';
 import { PaymentsModule } from './payments/payments.module';
+import { EscrowModule } from './escrow/escrow.module';
 
 /**
  * Guards against the imported-but-not-registered bug: a module referenced in a
@@ -21,14 +22,14 @@ function importsOf(mod: object): unknown[] {
 describe('module wiring', () => {
   it('AppModule registers the money/receipt modules its services depend on', () => {
     const imports = importsOf(AppModule);
-    for (const m of [LedgerModule, ReceiptsModule, GiftsModule, PaymentsModule]) {
+    for (const m of [LedgerModule, ReceiptsModule, GiftsModule, PaymentsModule, EscrowModule]) {
       expect(imports).toContain(m);
     }
   });
 
   it('WorkerModule registers the modules its processor depends on', () => {
     const imports = importsOf(WorkerModule);
-    for (const m of [LedgerModule, ReceiptsModule, GiftsModule, PaymentsModule]) {
+    for (const m of [LedgerModule, ReceiptsModule, GiftsModule, PaymentsModule, EscrowModule]) {
       expect(imports).toContain(m);
     }
   });

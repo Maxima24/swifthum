@@ -160,6 +160,73 @@ export interface ReceiptVerifyResult {
   };
 }
 
+// ─── P2P Escrow ──────────────────────────────────────────────────
+
+export type EscrowState =
+  | 'PROPOSED'
+  | 'ACCEPTED'
+  | 'PAID_MARKED'
+  | 'COMPLETED'
+  | 'DECLINED'
+  | 'CANCELLED'
+  | 'EXPIRED'
+  | 'DISPUTED'
+  | 'RESOLVED_RELEASED'
+  | 'RESOLVED_REFUNDED';
+
+export type EscrowRole = 'buyer' | 'seller' | 'observer';
+
+/** Response of POST /escrows — a freshly created, funded escrow. */
+export interface EscrowCreated {
+  escrowId: string;
+  joinCode: string;
+  deepLink: string;
+  amountMinor: number;
+  currency: string;
+  terms?: string;
+  state: EscrowState;
+  ttlExpiresAt: string;
+  createdAt: string;
+}
+
+/** Viewer-relative escrow summary (list items, action responses). */
+export interface EscrowSummary {
+  id: string;
+  role: EscrowRole;
+  state: EscrowState;
+  amountMinor: number;
+  currency: string;
+  terms?: string;
+  counterparty?: { displayName: string };
+  ttlExpiresAt: string;
+  createdAt: string;
+  deepLink?: string; // present for the creator while still PROPOSED
+}
+
+export interface EscrowEventItem {
+  type: string;
+  actorId: string | null;
+  metadata: unknown;
+  createdAt: string;
+}
+
+export interface EscrowDetail extends EscrowSummary {
+  events: EscrowEventItem[];
+}
+
+export interface CreateEscrowInput {
+  amountMinor: number;
+  terms?: string;
+}
+
+export type EscrowAction =
+  | 'accept'
+  | 'decline'
+  | 'cancel'
+  | 'mark-paid'
+  | 'release'
+  | 'dispute';
+
 // ─── SwiftyEx account / portfolio ────────────────────────────────
 
 export interface SwiftyexAccountStatus {

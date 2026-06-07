@@ -27,6 +27,8 @@ model User {
   swiftyOrders   SwiftyexOrder[]
   giftsSent      Gift[]            @relation("GiftsSent")
   giftsClaimed   Gift[]            @relation("GiftsClaimed")
+  escrowsCreated Escrow[]          @relation("EscrowsCreated")
+  escrowsJoined  Escrow[]          @relation("EscrowsJoined")
 }
 
 model SwiftyexAccount {
@@ -253,4 +255,45 @@ model Receipt {
   @@index([sourceType, sourceId])
   @@index([toUserId, createdAt])
   @@index([fromUserId, createdAt])
+}
+
+// ─── P2P Escrow (§3) ─────────────────────────────────────────────────────────
+// Money sits in the `escrow_hold` LedgerAccount from funding until resolution.
+// creator = buyer/funder; counterparty = seller/receiver (bound on join via a
+// shareable link). FSM enforced in the service layer (common/fsm.ts).
+
+model Escrow {
+  id             String    @id
+  creatorId      String    // buyer / funder
+  counterpartyId String?   // seller / receiver — bound on join
+  asset          String    @default("NGN")
+  amountMinor    BigInt
+  terms          String?
+  joinCode       String    @unique
+  state          String    @default("PROPOSED")
+  ttlExpiresAt   DateTime
+  stateUpdatedAt DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+
+  creator        User      @relation("EscrowsCreated", fields: [creatorId], references: [id], onDelete: Cascade)
+  counterparty   User?     @relation("EscrowsJoined", fields: [counterpartyId], references: [id], onDelete: SetNull)
+  events         EscrowEvent[]
+
+  @@index([creatorId, createdAt])
+  @@index([counterpartyId, createdAt])
+  @@index([state, ttlExpiresAt]) // drives the worker expiry sweep
+}
+
+// Append-only audit trail of every escrow transition (mirrors RuleExecution).
+model EscrowEvent {
+  id         String   @id
+  escrowId   String
+  type       String   // proposed|joined|accepted|declined|cancelled|paid_marked|released|disputed|resolved_released|resolved_refunded|expired
+  actorId    String?  // null = system/worker
+  metadata   Json     @default("{}")
+  createdAt  DateTime @default(now())
+
+  escrow     Escrow   @relation(fields: [escrowId], references: [id], onDelete: Cascade)
+
+  @@index([escrowId, createdAt])
 }

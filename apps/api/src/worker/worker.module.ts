@@ -11,6 +11,7 @@ import { RulesModule } from '../rules/rules.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { GiftsModule } from '../gifts/gifts.module';
 import { ReceiptsModule } from '../receipts/receipts.module';
+import { EscrowModule } from '../escrow/escrow.module';
 import { WatcherProcessor } from './watcher.processor';
 
 @Module({
@@ -27,6 +28,7 @@ import { WatcherProcessor } from './watcher.processor';
     PaymentsModule,
     GiftsModule,
     ReceiptsModule,
+    EscrowModule,
   ],
   providers: [WatcherProcessor],
   exports: [WatcherProcessor],

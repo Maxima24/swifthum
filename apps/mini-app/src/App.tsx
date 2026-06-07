@@ -10,6 +10,9 @@ import { GiftCreate } from './routes/GiftCreate';
 import { GiftList } from './routes/GiftList';
 import { Receipts } from './routes/Receipts';
 import { ReceiptView } from './routes/ReceiptView';
+import { EscrowCreate } from './routes/EscrowCreate';
+import { EscrowList } from './routes/EscrowList';
+import { EscrowDetail } from './routes/EscrowDetail';
 import { TabBar } from './components/TabBar';
 import { Sidebar } from './components/Sidebar';
 import { Shell } from './components/Shell';
@@ -47,6 +50,9 @@ export function App() {
           <Route path="/pay/gifts" element={<GiftCreate />} />
           <Route path="/pay/gifts/my" element={<GiftList />} />
           <Route path="/pay/receipts" element={<Receipts />} />
+          <Route path="/pay/escrow" element={<EscrowList />} />
+          <Route path="/pay/escrow/new" element={<EscrowCreate />} />
+          <Route path="/pay/escrow/:id" element={<EscrowDetail />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/rules" replace />} />
         </Routes>

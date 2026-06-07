@@ -6,6 +6,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.services.formatters import (
     format_balance,
+    format_escrow_card,
+    format_escrow_notification,
     format_gift_claimed,
     format_gift_expired,
     format_gift_received,
@@ -149,6 +151,39 @@ class TestReceiptVerification:
             "receipt": {"amountMinor": 1, "from": "<b>x</b>", "to": "y", "sourceType": "gift"},
         })
         assert "<b>x</b>" not in out and "&lt;b&gt;x&lt;/b&gt;" in out
+
+
+class TestEscrow:
+    def test_card_buyer(self):
+        out = format_escrow_card({
+            "id": "esc_1", "amountMinor": 50_000_00, "state": "ACCEPTED",
+            "role": "buyer", "counterparty": {"displayName": "Bayo"}, "terms": "laptop",
+        })
+        assert "₦50,000.00" in out and "Accepted" in out and "Bayo" in out and "laptop" in out and "buyer" in out
+
+    def test_card_escapes(self):
+        out = format_escrow_card({
+            "id": "esc_1", "amountMinor": 1, "state": "PROPOSED",
+            "role": "seller", "counterparty": {"displayName": "<b>x</b>"},
+        })
+        assert "<b>x</b>" not in out and "&lt;b&gt;x&lt;/b&gt;" in out
+
+    def test_notifications(self):
+        for t in (
+            "escrow_accepted", "escrow_declined", "escrow_marked_paid",
+            "escrow_completed", "escrow_disputed", "escrow_expired",
+        ):
+            out = format_escrow_notification(t, {"amountMinor": 5_000_00, "counterpartyName": "Ada"})
+            assert out and "₦5,000.00" in out
+
+    def test_resolved_release_vs_refund(self):
+        rel = format_escrow_notification("escrow_resolved", {"amountMinor": 100, "resolution": "release"})
+        ref = format_escrow_notification("escrow_resolved", {"amountMinor": 100, "resolution": "refund"})
+        assert "seller" in rel and "buyer" in ref
+
+    def test_dispatch_routes_escrow(self):
+        out = format_notification({"type": "escrow_accepted", "data": {"amountMinor": 100, "counterpartyName": "Z"}})
+        assert out and "accepted" in out
 
 
 class TestDispatch:

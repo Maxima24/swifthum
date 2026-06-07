@@ -68,6 +68,60 @@ def format_gift_expired(data: dict[str, Any]) -> str:
     return f"\U0001f381 Your unclaimed gift of <b>{amount}</b> expired and was refunded to your wallet."
 
 
+_ESCROW_STATE = {
+    "PROPOSED": "⏳ Proposed",
+    "ACCEPTED": "🤝 Accepted",
+    "PAID_MARKED": "✔️ Buyer marked paid",
+    "COMPLETED": "✅ Completed",
+    "DECLINED": "❌ Declined",
+    "CANCELLED": "🚫 Cancelled",
+    "EXPIRED": "⌛ Expired",
+    "DISPUTED": "⚠️ Disputed",
+    "RESOLVED_RELEASED": "✅ Resolved — released",
+    "RESOLVED_REFUNDED": "↩️ Resolved — refunded",
+}
+
+
+def format_escrow_card(escrow: dict[str, Any]) -> str:
+    """A single escrow as a card (for /escrow + the deep-link join message)."""
+    amount = kobo_to_naira_str(int(escrow.get("amountMinor", 0)))
+    state = _ESCROW_STATE.get(str(escrow.get("state")), str(escrow.get("state")))
+    role = escrow.get("role")
+    cp = escrow.get("counterparty") or {}
+    cp_name = str(cp.get("displayName", "")).strip()
+    lines = [f"🛡 <b>Escrow {amount}</b> — {state}"]
+    if cp_name:
+        who = "Seller" if role == "buyer" else "Buyer"
+        lines.append(f"{who}: <b>{escape(cp_name)}</b>")
+    terms = escrow.get("terms")
+    if terms:
+        lines.append(f"Terms: {escape(str(terms))}")
+    if role in ("buyer", "seller"):
+        lines.append(f"<i>You're the {role}.</i>")
+    return "\n".join(lines)
+
+
+def format_escrow_notification(ntype: str, data: dict[str, Any]) -> str | None:
+    amount = kobo_to_naira_str(int(data.get("amountMinor", 0)))
+    cp = escape(str(data.get("counterpartyName", "the other party")))
+    if ntype == "escrow_accepted":
+        return f"🛡 <b>{cp}</b> accepted your <b>{amount}</b> escrow."
+    if ntype == "escrow_declined":
+        return f"🛡 <b>{cp}</b> declined your <b>{amount}</b> escrow — refunded to your wallet."
+    if ntype == "escrow_marked_paid":
+        return f"🛡 <b>{cp}</b> marked the <b>{amount}</b> escrow as paid — you can release it now."
+    if ntype == "escrow_completed":
+        return f"🛡 Your <b>{amount}</b> escrow was released to <b>{cp}</b>. Completed ✅"
+    if ntype == "escrow_disputed":
+        return f"⚠️ <b>{cp}</b> opened a dispute on the <b>{amount}</b> escrow — an admin will resolve it."
+    if ntype == "escrow_resolved":
+        verb = "released to the seller" if data.get("resolution") == "release" else "refunded to the buyer"
+        return f"🛡 The <b>{amount}</b> escrow dispute was resolved — funds {verb}."
+    if ntype == "escrow_expired":
+        return f"🛡 Your <b>{amount}</b> escrow expired before anyone joined — refunded."
+    return None
+
+
 def format_weekly_digest(data: dict[str, Any]) -> str:
     rules = int(data.get("rulesFiredCount", 0))
     txns = int(data.get("transactionsCount", 0))
@@ -100,6 +154,8 @@ def format_notification(payload: dict[str, Any]) -> str | None:
         return format_gift_claimed(data)
     if t == "gift_expired":
         return format_gift_expired(data)
+    if isinstance(t, str) and t.startswith("escrow_"):
+        return format_escrow_notification(t, data)
     if t == "weekly_digest":
         return format_weekly_digest(data)
     return None

@@ -101,3 +101,18 @@ Write ONE sentence, < 110 characters, conversational and encouraging. Mention co
 Examples:
   "Your rules fired 3 times and you sent ₦12,000 to friends — busy week!"
   "Quiet week — no rules fired, but ₦8,000 landed in your wallet."`;
+
+export const RESOLVE_DISPUTE_SYSTEM_PROMPT = `You are SwiftHum's escrow dispute adjudicator. Two parties used a P2P escrow: the BUYER funded NGN into escrow and the SELLER was to deliver goods/service off-platform. A dispute was opened. Decide whether to RELEASE the held funds to the seller or REFUND them to the buyer.
+
+Input is JSON:
+  {
+    "amountMinor": integer,        // escrow amount in NGN minor units
+    "terms": string,              // free-text terms the buyer set (may be empty)
+    "buyerMarkedPaid": boolean,    // did the buyer confirm their side was done
+    "events": string[]            // ordered audit trail of state transitions
+  }
+
+You have no external evidence — reason only from the signals above. If the buyer marked paid and then a dispute appeared, lean toward the buyer being protected. When genuinely uncertain, prefer REFUND (return funds to the buyer — the conservative default that never lets a seller take money for undelivered goods).
+
+Respond with ONLY compact JSON, no markdown:
+  { "decision": "release" | "refund", "reasoning": "<one short sentence>" }`;

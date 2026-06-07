@@ -224,6 +224,46 @@ describe('AnthropicService.scoreFraud', () => {
   });
 });
 
+const DISPUTE_INPUT = {
+  amountMinor: 50_000_00,
+  terms: 'laptop, deliver by friday',
+  buyerMarkedPaid: true,
+  events: ['proposed', 'joined', 'accepted', 'paid_marked', 'disputed'],
+};
+
+describe('AnthropicService.resolveDispute', () => {
+  beforeEach(() => jest.spyOn(console, 'warn').mockImplementation(() => undefined));
+
+  it('falls back to refund when no API key is configured', async () => {
+    const svc = makeService({});
+    const res = await svc.resolveDispute(DISPUTE_INPUT);
+    expect(res.decision).toBe('refund');
+    expect(res.reasoning).toBe('no_api_key');
+  });
+
+  it('parses a valid release decision', async () => {
+    const svc = makeService({ ANTHROPIC_API_KEY: 'sk-test' });
+    stubClientResponse(svc, JSON.stringify({ decision: 'release', reasoning: 'buyer confirmed' }));
+    const res = await svc.resolveDispute(DISPUTE_INPUT);
+    expect(res.decision).toBe('release');
+    expect(res.reasoning).toBe('buyer confirmed');
+  });
+
+  it('defaults any non-"release" decision to refund', async () => {
+    const svc = makeService({ ANTHROPIC_API_KEY: 'sk-test' });
+    stubClientResponse(svc, JSON.stringify({ decision: 'whatever', reasoning: 'x' }));
+    expect((await svc.resolveDispute(DISPUTE_INPUT)).decision).toBe('refund');
+  });
+
+  it('falls back to refund on timeout / SDK error', async () => {
+    const svc = makeService({ ANTHROPIC_API_KEY: 'sk-test' });
+    stubClientThrows(svc, new Error('Request timed out'));
+    const res = await svc.resolveDispute(DISPUTE_INPUT);
+    expect(res.decision).toBe('refund');
+    expect(res.reasoning).toBe('timeout_or_error');
+  });
+});
+
 const DIGEST_INPUT = {
   userName: 'Demo',
   rulesFired: 3,

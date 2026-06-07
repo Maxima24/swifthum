@@ -18,6 +18,7 @@ import { InsightsModule } from './insights/insights.module';
 import { PaymentsModule } from './payments/payments.module';
 import { GiftsModule } from './gifts/gifts.module';
 import { ReceiptsModule } from './receipts/receipts.module';
+import { EscrowModule } from './escrow/escrow.module';
 import { LedgerModule } from './ledger/ledger.module';
 import { IdempotencyModule } from './idempotency/idempotency.module';
 
@@ -44,6 +45,7 @@ import { HealthController } from './health/health.controller';
     PaymentsModule,
     GiftsModule,
     ReceiptsModule,
+    EscrowModule,
   ],
   controllers: [HealthController],
   providers: [

@@ -35,6 +35,24 @@ export type NotificationPayload =
     }
   | {
       telegramId: number;
+      type:
+        | 'escrow_accepted'
+        | 'escrow_declined'
+        | 'escrow_marked_paid'
+        | 'escrow_completed'
+        | 'escrow_disputed'
+        | 'escrow_resolved'
+        | 'escrow_expired';
+      data: {
+        escrowId: string;
+        amountMinor: number;
+        counterpartyName?: string;
+        resolution?: 'release' | 'refund';
+        reasoning?: string;
+      };
+    }
+  | {
+      telegramId: number;
       type: 'weekly_digest';
       data: {
         rulesFiredCount: number;
