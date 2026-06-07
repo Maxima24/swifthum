@@ -50,7 +50,7 @@ curl -fsS https://swifthum-api.quickbiteltd.org/health   # → {"status":"ok"}
   docker logs --since 5m swifthum-bot  | grep -iE "dispatching notification|not recognized|send_message failed"
   ```
   `publishing …` + bot `send_message failed … 403` → recipient hasn't `/start`ed. `not recognized` → stale bot image (`$C build --no-cache bot && $C up -d bot`). No `publishing …` → API didn't publish (real bug).
-- **Notification listener is now supervised** — `notifications.run` auto-reconnects on a failed subscribe / dropped Redis connection (it used to die silently → *every* DM dropped while the bot kept serving commands), and `main.py` logs if the task ever exits. The decisive check that the bot is actually subscribed:
+- **Notification listener: idle read-timeout reconnect storm (FIXED)** — root cause of "no DMs at all": the bot's `redis.asyncio` pub/sub had a ~5s socket read-timeout, so the blocking `pubsub.listen()` **raised `Timeout reading from redis:6379` on every quiet 5s window**, tearing down + re-subscribing the connection in a loop — any notification published between windows was lost. Fix: `notifications.run` now polls with `pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)` (returns `None` on an idle tick instead of raising) inside the supervised reconnect loop. `main.py` logs if the listener task ever exits. The decisive check that the bot is actually subscribed:
   ```bash
   docker exec swifthum-redis-prod redis-cli PUBSUB CHANNELS   # must list "swifthum.notifications"
   docker logs --since 10m swifthum-bot | grep -iE "listener subscribed|listener error|exited unexpectedly"
