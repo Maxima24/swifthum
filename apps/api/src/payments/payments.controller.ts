@@ -1,17 +1,35 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Post, Query } from '@nestjs/common';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtPayload } from '../auth/current-user.decorator';
+import { IdempotencyService } from '../idempotency/idempotency.service';
 import {
   CreateIntentDto,
   ParsePaymentDto,
   RedeemDto,
+  SendToUserDto,
   TransactionsQueryDto,
 } from './payments.dto';
 import { PaymentsService } from './payments.service';
 
 @Controller()
 export class PaymentsController {
-  constructor(private readonly payments: PaymentsService) {}
+  constructor(
+    private readonly payments: PaymentsService,
+    private readonly idempotency: IdempotencyService,
+  ) {}
+
+  /** Direct wallet → wallet send to a @username (no QR/gift link). */
+  @Post('transfers')
+  sendToUser(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: SendToUserDto,
+    @Headers('idempotency-key') idemKey?: string,
+  ) {
+    const key = idemKey ? `transfer:${user.sub}:${idemKey}` : undefined;
+    return this.idempotency.run(key, () =>
+      this.payments.sendToUser(user.sub, dto.recipientUsername, dto.amountMinor),
+    );
+  }
 
   @Post('intents')
   createIntent(@CurrentUser() user: JwtPayload, @Body() dto: CreateIntentDto) {

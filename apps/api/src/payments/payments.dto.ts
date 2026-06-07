@@ -25,6 +25,21 @@ export class RedeemDto {
   token!: string;
 }
 
+export class SendToUserDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(40)
+  recipientUsername!: string;
+
+  @IsInt()
+  @Min(1)
+  amountMinor!: number;
+
+  @IsOptional()
+  @IsIn(['NGN'])
+  currency?: 'NGN';
+}
+
 export class TransactionsQueryDto {
   @IsOptional()
   @IsString()

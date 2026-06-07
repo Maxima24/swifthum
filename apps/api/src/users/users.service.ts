@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from '../ledger/ledger.service';
 import { prefixedId } from '../common/ids';
@@ -6,6 +6,8 @@ import type { TelegramUser } from '../auth/init-data';
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger('Users');
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly ledger: LedgerService,
@@ -30,13 +32,15 @@ export class UsersService {
           where: { id: existing.id },
           data: { displayName },
         });
-        return { ...existing, displayName };
       }
-      return existing;
+      await this.applyUsername(existing.id, tg.username);
+      return existing.displayName !== displayName ? { ...existing, displayName } : existing;
     }
 
     const id = prefixedId('u');
-    return this.createUserWithSeed(id, telegramId, displayName, walletSeedMinor);
+    const user = await this.createUserWithSeed(id, telegramId, displayName, walletSeedMinor);
+    await this.applyUsername(id, tg.username);
+    return user;
   }
 
   async findById(id: string) {
@@ -76,12 +80,73 @@ export class UsersService {
   async ensureByTelegramId(
     telegramId: number,
     walletSeedMinor: bigint,
+    username?: string | null,
   ): Promise<{ id: string; telegramId: bigint; displayName: string }> {
     const tgIdBig = BigInt(telegramId);
     const existing = await this.prisma.user.findUnique({ where: { telegramId: tgIdBig } });
-    if (existing) return existing;
+    if (existing) {
+      await this.applyUsername(existing.id, username);
+      return existing;
+    }
     const id = prefixedId('u');
-    return this.createUserWithSeed(id, tgIdBig, `tg_${telegramId}`, walletSeedMinor);
+    const user = await this.createUserWithSeed(id, tgIdBig, `tg_${telegramId}`, walletSeedMinor);
+    await this.applyUsername(id, username);
+    return user;
+  }
+
+  /** Resolve a @handle to a user (internal — used by direct transfers). */
+  async findByUsername(raw: string) {
+    const handle = this.normalizeUsername(raw);
+    if (!handle) return null;
+    return this.prisma.user.findUnique({ where: { username: handle } });
+  }
+
+  /** Public lookup for the pay-by-username UI: does this @handle belong to a SwiftHum user? */
+  async lookupByUsername(
+    raw: string,
+  ): Promise<{ found: boolean; displayName?: string; username?: string }> {
+    const handle = this.normalizeUsername(raw);
+    if (!handle) return { found: false };
+    const u = await this.prisma.user.findUnique({
+      where: { username: handle },
+      select: { displayName: true, username: true },
+    });
+    if (!u) return { found: false };
+    return { found: true, displayName: u.displayName, username: u.username ?? handle };
+  }
+
+  /**
+   * Normalize + claim a Telegram @handle for a user. Telegram handles are
+   * globally unique at any instant, so if another row still holds it (stale
+   * after the previous owner renamed), move it to the current owner. Best-effort:
+   * a failure here never breaks sign-in.
+   */
+  private async applyUsername(userId: string, raw?: string | null): Promise<void> {
+    const handle = this.normalizeUsername(raw);
+    if (!handle) return;
+    try {
+      const me = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { username: true },
+      });
+      if (me?.username === handle) return;
+      await this.prisma.$transaction([
+        this.prisma.user.updateMany({
+          where: { username: handle, NOT: { id: userId } },
+          data: { username: null },
+        }),
+        this.prisma.user.update({ where: { id: userId }, data: { username: handle } }),
+      ]);
+    } catch (err) {
+      this.logger.warn(`applyUsername failed for ${userId}: ${(err as Error).message}`);
+    }
+  }
+
+  /** Strip a leading @, lowercase, and validate against Telegram handle chars. */
+  private normalizeUsername(raw?: string | null): string | null {
+    if (!raw) return null;
+    const h = raw.trim().replace(/^@+/, '').toLowerCase();
+    return /^[a-z0-9_]{3,32}$/.test(h) ? h : null;
   }
 
   /**

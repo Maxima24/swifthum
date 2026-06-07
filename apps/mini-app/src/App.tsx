@@ -5,6 +5,7 @@ import { RuleDetail } from './routes/RuleDetail';
 import { Settings } from './routes/Settings';
 import { Pay } from './routes/Pay';
 import { Send } from './routes/Send';
+import { SendToUser } from './routes/SendToUser';
 import { Receive } from './routes/Receive';
 import { GiftCreate } from './routes/GiftCreate';
 import { GiftList } from './routes/GiftList';
@@ -46,6 +47,7 @@ export function App() {
           <Route path="/rules/:id" element={<RuleDetail />} />
           <Route path="/pay" element={<Pay />} />
           <Route path="/pay/send" element={<Send />} />
+          <Route path="/pay/send-to-user" element={<SendToUser />} />
           <Route path="/pay/receive" element={<Receive />} />
           <Route path="/pay/gifts" element={<GiftCreate />} />
           <Route path="/pay/gifts/my" element={<GiftList />} />

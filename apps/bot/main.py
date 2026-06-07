@@ -27,11 +27,13 @@ from src.handlers import gift as gift_handler
 from src.handlers import help as help_handler
 from src.handlers import menu as menu_handler
 from src.handlers import parse as parse_handler
+from src.handlers import pay as pay_handler
 from src.handlers import rules as rules_handler
 from src.handlers import start as start_handler
 from src.handlers import verify as verify_handler
 from src.handlers import voice as voice_handler
 from src.handlers import wallet as wallet_handler
+from src.middlewares.username import UsernameCaptureMiddleware
 from src.services import notifications
 
 # Shown in Telegram's "/" command menu (set_my_commands).
@@ -39,6 +41,7 @@ BOT_COMMANDS = [
     BotCommand(command="menu", description="Open the action menu"),
     BotCommand(command="balance", description="Your NGN wallet balance"),
     BotCommand(command="rules", description="Your auto-trading rules"),
+    BotCommand(command="pay", description="Send NGN to a @username"),
     BotCommand(command="gift", description="Send an NGN gift link"),
     BotCommand(command="escrow", description="Your P2P escrows"),
     BotCommand(command="verify", description="Verify a SwiftHum receipt"),
@@ -65,10 +68,17 @@ async def amain() -> None:
     redis = Redis.from_url(settings.redis_url, decode_responses=True)
 
     async with ApiClient(settings.api_base_url, settings.internal_api_secret) as api:
+        # Remember each user's @handle (forwarded to the API on exchange) so
+        # bot-only users are findable by pay-by-username.
+        username_mw = UsernameCaptureMiddleware(api)
+        dp.message.outer_middleware(username_mw)
+        dp.callback_query.outer_middleware(username_mw)
+
         dp.include_router(start_handler.build_router(api, settings))
         dp.include_router(help_handler.build_router(settings))
         dp.include_router(menu_handler.build_router(api, settings))
         dp.include_router(wallet_handler.build_router(api))
+        dp.include_router(pay_handler.build_router(api, settings))
         dp.include_router(rules_handler.build_router(api))
         dp.include_router(gift_handler.build_router(api, settings))
         dp.include_router(escrow_handler.build_router(api, settings))

@@ -22,6 +22,9 @@ CB_ESCROW_CANCEL = "esc:cancel:"
 CB_ESCROW_MARKPAID = "esc:markpaid:"
 CB_ESCROW_RELEASE = "esc:release:"
 CB_ESCROW_DISPUTE = "esc:dispute:"
+# Pay-by-username confirm: pay:confirm:<username>:<amountMinor>
+CB_PAY_CONFIRM = "pay:confirm:"
+CB_PAY_CANCEL = "pay:cancel"
 
 
 def webapp_launch_kb(miniapp_url: str, text: str = "🎯 Open SwiftHum") -> InlineKeyboardMarkup:
@@ -37,6 +40,14 @@ def gift_create_kb(miniapp_url: str) -> InlineKeyboardMarkup:
     deep_link = f"{miniapp_url.rstrip('/')}/pay/gifts"
     return InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text="🎁 Create a gift", web_app=WebAppInfo(url=deep_link)),
+    ]])
+
+
+def pay_confirm_kb(username: str, amount_minor: int) -> InlineKeyboardMarkup:
+    """Confirm/Cancel for a /pay @username transfer."""
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="✅ Send", callback_data=f"{CB_PAY_CONFIRM}{username}:{amount_minor}"),
+        InlineKeyboardButton(text="✖ Cancel", callback_data=CB_PAY_CANCEL),
     ]])
 
 

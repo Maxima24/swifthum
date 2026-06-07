@@ -168,6 +168,43 @@ export async function mockApi<T>(path: string, init?: RequestInit): Promise<T> {
   // ─── Wallet ──────────────────────────────────────────────────
   if (path === '/wallets/me' && method === 'GET') return wallet as T;
 
+  // ─── Pay by @username (lookup + direct transfer) ─────────────
+  if (path.startsWith('/users/lookup') && method === 'GET') {
+    const handle = (new URLSearchParams(path.split('?')[1] ?? '').get('username') ?? '')
+      .replace(/^@+/, '')
+      .toLowerCase();
+    // Pretend a couple of demo handles exist.
+    const known: Record<string, string> = { bayo: 'Bayo A.', ada: 'Ada O.', demo: 'Demo User' };
+    if (known[handle]) return { found: true, displayName: known[handle], username: handle } as T;
+    return { found: false } as T;
+  }
+  if (path === '/transfers' && method === 'POST') {
+    const amountMinor = body.amountMinor as number;
+    if (amountMinor > wallet.balanceMinor) throw new Error('400 insufficient_balance');
+    const known: Record<string, string> = { bayo: 'Bayo A.', ada: 'Ada O.', demo: 'Demo User' };
+    const handle = String(body.recipientUsername ?? '').replace(/^@+/, '').toLowerCase();
+    const displayName = known[handle] ?? 'User';
+    wallet = { ...wallet, balanceMinor: wallet.balanceMinor - amountMinor };
+    transactions = [
+      {
+        id: nextId('tx'),
+        direction: 'sent',
+        amountMinor,
+        currency: 'NGN',
+        counterparty: { displayName },
+        settledAt: new Date().toISOString(),
+      },
+      ...transactions,
+    ];
+    return {
+      status: 'ok',
+      transferId: nextId('tx'),
+      amountMinor,
+      currency: 'NGN',
+      recipient: { displayName },
+    } as T;
+  }
+
   // ─── User preferences ────────────────────────────────────────
   if (path === '/users/me' && method === 'PATCH') {
     if (typeof body?.notificationsEnabled === 'boolean') {

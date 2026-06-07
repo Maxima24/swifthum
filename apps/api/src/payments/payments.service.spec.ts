@@ -116,9 +116,16 @@ function makeService(seed: {
   } as unknown as LedgerService;
 
   const receipts = { emit: jest.fn(async () => ({ id: 'rcpt_test' })) } as any;
+  const usersSvc = {
+    findByUsername: jest.fn(async (raw: string) => {
+      const handle = raw.trim().replace(/^@+/, '').toLowerCase();
+      const id = `u_${handle}`;
+      return wallets.has(id) ? { id, displayName: `U_${id}`, telegramId: 2n, notificationsEnabled: true } : null;
+    }),
+  } as any;
 
-  const svc = new PaymentsService(db, ledger, receipts, botPush, ai, config);
-  return { svc, intents, wallets, transactions };
+  const svc = new PaymentsService(db, ledger, receipts, usersSvc, botPush, ai, config);
+  return { svc, intents, wallets, transactions, usersSvc, receipts, botPush };
 }
 
 function seedIntent(over: Partial<SeedIntent> = {}): SeedIntent {
@@ -200,6 +207,47 @@ describe('PaymentsService.getIntentStatus', () => {
       wallets: {},
     });
     expect((await expired.svc.getIntentStatus('u_sender', 'i_1')).status).toBe('expired');
+  });
+});
+
+describe('PaymentsService.sendToUser (pay by @username)', () => {
+  it('moves funds wallet→wallet, writes both ledger rows, emits a receipt + DMs', async () => {
+    const { svc, wallets, transactions, receipts, botPush } = makeService({
+      wallets: { u_sender: 100_000n, u_bob: 0n },
+    });
+    const res = await svc.sendToUser('u_sender', '@Bob', 30_000);
+    expect(res.status).toBe('ok');
+    expect(res.recipient.displayName).toBe('U_u_bob');
+    expect(wallets.get('u_sender')!.balanceMinor).toBe(70_000n);
+    expect(wallets.get('u_bob')!.balanceMinor).toBe(30_000n);
+    expect(transactions.filter((t) => t.direction === 'sent')).toHaveLength(1);
+    expect(transactions.filter((t) => t.direction === 'received')).toHaveLength(1);
+    expect(receipts.emit).toHaveBeenCalled();
+    await new Promise((r) => setImmediate(r)); // flush fire-and-forget DMs
+    expect(botPush.publish).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects an unknown username', async () => {
+    const { svc } = makeService({ wallets: { u_sender: 100_000n } });
+    await expect(svc.sendToUser('u_sender', 'nobody', 1000)).rejects.toMatchObject({
+      code: 'not_found',
+    });
+  });
+
+  it('rejects sending to yourself', async () => {
+    const { svc } = makeService({ wallets: { u_sender: 100_000n } });
+    await expect(svc.sendToUser('u_sender', 'sender', 1000)).rejects.toMatchObject({
+      code: 'validation_error',
+    });
+  });
+
+  it('rejects insufficient funds (no money moved)', async () => {
+    const { svc, wallets } = makeService({ wallets: { u_sender: 5_000n, u_bob: 0n } });
+    await expect(svc.sendToUser('u_sender', 'bob', 30_000)).rejects.toMatchObject({
+      code: 'insufficient_balance',
+    });
+    expect(wallets.get('u_sender')!.balanceMinor).toBe(5_000n);
+    expect(wallets.get('u_bob')!.balanceMinor).toBe(0n);
   });
 });
 

@@ -49,6 +49,20 @@ export function Pay() {
           </Button>
         </div>
 
+        <ListGroup title="Send to a person">
+          <ListRow
+            icon="send"
+            iconTone="accent"
+            label="Send to @username"
+            subtitle="Pay another SwiftHum user directly by their Telegram handle."
+            chevron
+            onClick={() => {
+              haptic('medium');
+              navigate('/pay/send-to-user');
+            }}
+          />
+        </ListGroup>
+
         <ListGroup title="Gifts">
           <ListRow
             icon="send"

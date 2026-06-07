@@ -80,6 +80,22 @@ export interface RedemptionResult {
   sender: { displayName: string };
 }
 
+/** GET /users/lookup?username= — resolve a @handle to a SwiftHum user. */
+export interface UserLookupResult {
+  found: boolean;
+  displayName?: string;
+  username?: string;
+}
+
+/** POST /transfers — direct wallet → wallet send to a @username. */
+export interface SendToUserResult {
+  status: 'ok';
+  transferId: string;
+  amountMinor: number;
+  currency: 'NGN';
+  recipient: { displayName: string };
+}
+
 export type TransferDirection = 'sent' | 'received';
 
 export interface Transaction {
