@@ -102,6 +102,18 @@ async def amain() -> None:
             log.warning("set_my_commands failed", error=str(e))
 
         notif_task = asyncio.create_task(notifications.run(bot, redis), name="notifications")
+
+        def _notif_done(task: asyncio.Task) -> None:
+            # The listener is supervised (auto-reconnects), so it should only ever
+            # finish via cancellation on shutdown. Anything else is a bug worth shouting.
+            if task.cancelled():
+                return
+            exc = task.exception()
+            if exc is not None:
+                log.error("notification listener exited unexpectedly", error=str(exc))
+
+        notif_task.add_done_callback(_notif_done)
+        log.info("notification listener task started")
         log.info("bot starting polling")
 
         try:

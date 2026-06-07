@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from contextlib import suppress
 
 from aiogram import Bot
 from aiogram.enums import ParseMode
@@ -35,24 +36,33 @@ def is_real_message(message: dict) -> bool:
 
 
 async def run(bot: Bot, redis: Redis) -> None:
-    """Long-running coroutine. Cancel from the caller on shutdown."""
-    pubsub = redis.pubsub()
-    await pubsub.subscribe(CHANNEL)
-    log.info("notification listener subscribed", channel=CHANNEL)
-    try:
-        async for message in pubsub.listen():
-            if not is_real_message(message):
-                continue
-            await _dispatch(bot, message.get("data"))
-    except asyncio.CancelledError:
-        log.info("notification listener stopping")
-        raise
-    finally:
+    """Long-running coroutine. Cancel from the caller on shutdown.
+
+    Supervised: a failed subscribe or a dropped Redis connection must NOT leave
+    the listener silently dead (which drops every notification while the bot
+    otherwise keeps working). On any non-cancellation error we log loudly and
+    reconnect, so the subscription self-heals.
+    """
+    while True:
+        pubsub = redis.pubsub()
         try:
-            await pubsub.unsubscribe(CHANNEL)
-            await pubsub.aclose()
-        except Exception:  # pragma: no cover — best-effort cleanup
-            pass
+            await pubsub.subscribe(CHANNEL)
+            log.info("notification listener subscribed", channel=CHANNEL)
+            async for message in pubsub.listen():
+                if not is_real_message(message):
+                    continue
+                await _dispatch(bot, message.get("data"))
+        except asyncio.CancelledError:
+            log.info("notification listener stopping")
+            with suppress(Exception):  # best-effort cleanup
+                await pubsub.unsubscribe(CHANNEL)
+                await pubsub.aclose()
+            raise
+        except Exception as e:  # noqa: BLE001 — subscribe failure / dropped conn
+            log.warning("notification listener error; reconnecting in 3s", error=str(e))
+            with suppress(Exception):
+                await pubsub.aclose()
+            await asyncio.sleep(3)
 
 
 async def _dispatch(bot: Bot, raw: bytes | str | None) -> None:

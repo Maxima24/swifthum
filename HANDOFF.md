@@ -49,7 +49,13 @@ curl -fsS https://swifthum-api.quickbiteltd.org/health   # → {"status":"ok"}
   docker logs --since 5m swifthum-api  | grep -i publishing     # did the API publish?
   docker logs --since 5m swifthum-bot  | grep -iE "dispatching notification|not recognized|send_message failed"
   ```
-  `publishing …` + bot `send_message failed … 403` → recipient hasn't `/start`ed. `not recognized` → stale bot image (`$C build --no-cache bot && $C up -d bot`). No `publishing …` → API didn't publish (real bug). The bot listener now wraps `format_notification` in try/except so one bad payload can't silently kill all future DMs.
+  `publishing …` + bot `send_message failed … 403` → recipient hasn't `/start`ed. `not recognized` → stale bot image (`$C build --no-cache bot && $C up -d bot`). No `publishing …` → API didn't publish (real bug).
+- **Notification listener is now supervised** — `notifications.run` auto-reconnects on a failed subscribe / dropped Redis connection (it used to die silently → *every* DM dropped while the bot kept serving commands), and `main.py` logs if the task ever exits. The decisive check that the bot is actually subscribed:
+  ```bash
+  docker exec swifthum-redis-prod redis-cli PUBSUB CHANNELS   # must list "swifthum.notifications"
+  docker logs --since 10m swifthum-bot | grep -iE "listener subscribed|listener error|exited unexpectedly"
+  ```
+  If the channel is absent, the listener wasn't up — the reconnect loop now keeps it up and logs the real Redis error to fix next.
 
 ## Open items / TODO
 - **Rotate all secrets** that were shown in chat screenshots (TELEGRAM_BOT_TOKEN via @BotFather `/revoke`, JWT_SECRET, INTERNAL_API_SECRET, PAYMENT_TOKEN_SECRET, SWIFTYEX_KEY_ENC_SECRET, POSTGRES_PASSWORD, CMC_API_KEY).
