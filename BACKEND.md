@@ -858,6 +858,7 @@ Use `vitest` or `jest` — whichever Nest's default is in this repo's version.
 - [ ] `POST /redeem`
 - [ ] `GET /transactions`
 - [x] `POST /gifts` · `POST /gifts/claim` · `GET /gifts` · `POST /gifts/:id/cancel`  (see §19)
+- [x] `GET /receipts` · `GET /receipts/verify?token=` (public)  (see §20)
 - [ ] Worker: rule evaluator (BullMQ, repeating)
 - [ ] Worker: expired-intent refunder
 - [x] Worker: expired-gift refunder (§19)
@@ -931,3 +932,39 @@ and `gift_expired` (`{ amountMinor }`).
 ### Bot surfaces
 - `/start gift_<code>` → `POST /gifts/claim` (deep-link handler).
 - `/gift` → opens the Mini App's `/pay/gifts` create screen.
+
+---
+
+## 20. Verifiable Receipts (Hackfest §2)
+
+Every completed money movement emits a **signed, shareable receipt**. The token is
+an HMAC-signed URL token (`apps/api/src/common/signed-token.ts`, secret
+`SIGNED_TOKEN_SECRET`, falling back to `PAYMENT_TOKEN_SECRET`). Anyone can
+re-verify it server-side → a ✅ "Verified by SwiftyEx" badge. Editing the token in
+the URL breaks the signature → ❌ (the tamper demo). Counterparties are masked to
+display-name snapshots; internal ids never appear in the token.
+
+**Emit points** (inside the same serializable tx as the money move): payment
+`redeem`, gift `claim` (escrow release later). Token payload:
+`{ receiptId, amountMinor, asset, from, to, sourceType, purpose:'receipt', iat, exp, nonce }`.
+
+### `GET /receipts`  (authed)
+The caller's receipts (sent + received), newest first:
+```json
+{ "items": [{ "id": "rcpt_…", "sourceType": "payment", "direction": "received",
+  "amountMinor": 50000, "currency": "NGN", "counterparty": { "displayName": "Ada" },
+  "url": "https://<miniapp>/r/rcpt_…?token=…", "token": "…", "createdAt": "ISO" }] }
+```
+
+### `GET /receipts/verify?token=…`  (**public** — `@Public()`, no auth)
+Re-verifies the signature and returns the authoritative masked receipt from the DB.
+```json
+{ "valid": true, "receipt": { "id", "sourceType", "amountMinor", "asset",
+  "from": "Ada", "to": "Bayo", "createdAt": "ISO" } }
+```
+Tampered / expired / unknown token → `{ "valid": false }`. Used by the Mini-App
+public page `/r/:id` (rendered outside AuthGate) and the bot `/verify <token>`.
+
+### Surfaces
+- Mini-App: public `/r/:receiptId` verify page + a `/pay/receipts` list (share/copy/view).
+- Bot: `/verify <token>` (accepts a raw token or a full receipt link).

@@ -128,6 +128,38 @@ export interface CreateGiftInput {
   message?: string;
 }
 
+// ─── Verifiable Receipts ─────────────────────────────────────────
+
+export type ReceiptSourceType = 'payment' | 'gift' | 'escrow';
+
+/** An item in GET /receipts — the caller's receipts with shareable links. */
+export interface ReceiptListItem {
+  id: string;
+  sourceType: ReceiptSourceType;
+  direction: TransferDirection;
+  amountMinor: number;
+  currency: string;
+  counterparty: { displayName: string };
+  url: string; // https://<miniapp>/r/<id>?token=<token>
+  token: string;
+  createdAt: string;
+}
+
+/** Response of GET /receipts/verify?token=… (public). */
+export interface ReceiptVerifyResult {
+  valid: boolean;
+  reason?: string;
+  receipt?: {
+    id: string;
+    sourceType: ReceiptSourceType;
+    amountMinor: number;
+    asset: string;
+    from: string;
+    to: string;
+    createdAt: string;
+  };
+}
+
 // ─── SwiftyEx account / portfolio ────────────────────────────────
 
 export interface SwiftyexAccountStatus {

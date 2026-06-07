@@ -128,7 +128,9 @@ function makeService(seed: {
     get: (k: string, d?: string) => (k === 'BOT_USERNAME' ? 'swifthum_bot' : d),
   } as unknown as ConfigService;
 
-  const svc = new GiftsService(db, ledger, botPush, config);
+  const receipts = { emit: jest.fn(async () => ({ id: 'rcpt_test' })) } as any;
+
+  const svc = new GiftsService(db, ledger, receipts, botPush, config);
   return { svc, gifts, wallets, users, botPush, ledger, getHeld: () => held };
 }
 

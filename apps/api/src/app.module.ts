@@ -17,6 +17,7 @@ import { RulesModule } from './rules/rules.module';
 import { InsightsModule } from './insights/insights.module';
 import { PaymentsModule } from './payments/payments.module';
 import { GiftsModule } from './gifts/gifts.module';
+import { ReceiptsModule } from './receipts/receipts.module';
 import { LedgerModule } from './ledger/ledger.module';
 import { IdempotencyModule } from './idempotency/idempotency.module';
 

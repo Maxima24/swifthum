@@ -77,8 +77,16 @@ Full stack, all green (API tsc + `nest build` + 122 jest; mini-app tsc + vite bu
 - **Mini-app** — `GiftCreate` (amount + message → QR/share link) + `GiftList` ("my gifts" with state + cancel); routes `/pay/gifts`, `/pay/gifts/my`; entry points on Pay; gift mocks added for dev mode.
 - **New env**: `BOT_USERNAME` (for deep-links, default `swifthum_bot`) + `GIFT_TTL_HOURS` (default 168). **Set `BOT_USERNAME` in prod `.env`** or links point at the wrong bot. No backfill (gift tables start empty) — migration auto-applies on `up`.
 
-### Next: Stage 3 — Verifiable Receipts (§2)
-Signer (`common/signed-token.ts`) + `SIGNED_TOKEN_SECRET` already exist. Add `Receipt` model, emit on every completed movement (redeem, gift claim, escrow release), `/r/:id` shareable mini-app route, server-side `verify()` (+ bot `/verify`), URL-tamper demo.
+## Hackfest build — Stage 3 (Verifiable Receipts §2) DONE
+Full stack, all green (API tsc + `nest build` + 127 jest; mini-app tsc + vite build; bot 52 pytest). Spec in [BACKEND.md §20](BACKEND.md).
+- **API** `apps/api/src/receipts/` — `ReceiptsService.emit(tx, …)` signs + stores a `Receipt` **inside** the redeem + gift-claim txs (atomic). `GET /receipts` (authed list w/ share URLs) + `GET /receipts/verify?token=` (**`@Public`** — re-verifies the signature, returns masked receipt). Migration `20260607140000_receipts`. Secret = `SIGNED_TOKEN_SECRET` falling back to `PAYMENT_TOKEN_SECRET` (no boot crash if unset).
+- **Mini-app** — public `/r/:receiptId` page (`ReceiptView`, **branches before `AuthGate`** in `App.tsx` so a shared link opens for anyone, no Telegram session) with the ✅/❌ "Verified by SwiftyEx" badge; `/pay/receipts` list (share/copy/view); entry on Pay; receipt mocks for dev.
+- **Bot** — `/verify <token>` (accepts a raw token or a full receipt link) → public verify endpoint.
+- **No new required env** (`SIGNED_TOKEN_SECRET` already in `.env.example`; `MINIAPP_URL` already shared). **No backfill** — receipts table starts empty; migration auto-runs on `up`.
+- **Build footgun fixed**: `tsBuildInfoFile` now lives in `dist/` (was a stray root `*.tsbuildinfo` making `rm -rf dist && nest build` silently emit nothing); `*.tsbuildinfo` gitignored. Prod Docker build was never affected (fresh container).
+
+### Next: Stage 4 — P2P Escrow (§3)
+Largest feature. `Escrow` + `EscrowEvent` models, FSM (`CREATED→FUNDED→PAID_MARKED→RELEASED/COMPLETED` + DECLINED/CANCELLED/DISPUTED→RESOLVED_*), `escrow_hold` ledger account (already a system-account kind), bot inline Accept/Decline/Release buttons + DMs, mini-app escrow dashboard, dispute → admin/AI resolution. Emit a receipt on release (reuse `ReceiptsService.emit` with `sourceType:'escrow'`).
 
 ## Earlier roadmap (bot hub — partially superseded by hackfest work)
 - **Phase 1: interactive bot hub** — `/menu` inline hub + quick commands, SwiftyEx read features.

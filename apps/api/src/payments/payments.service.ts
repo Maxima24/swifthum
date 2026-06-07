@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from '../ledger/ledger.service';
+import { ReceiptsService } from '../receipts/receipts.service';
 import { Errors } from '../common/errors';
 import { prefixedId } from '../common/ids';
 import { BotPushService } from '../bot/bot-push.service';
@@ -21,6 +22,7 @@ export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ledger: LedgerService,
+    private readonly receipts: ReceiptsService,
     private readonly botPush: BotPushService,
     private readonly ai: AnthropicService,
     config: ConfigService,
@@ -207,6 +209,17 @@ export class PaymentsService {
               intentId: intent.id,
             },
           ],
+        });
+
+        // Emit a verifiable receipt for the completed transfer.
+        await this.receipts.emit(tx, {
+          sourceType: 'payment',
+          sourceId: intent.id,
+          fromUserId: sender.id,
+          toUserId: receiver.id,
+          fromName: sender.displayName,
+          toName: receiver.displayName,
+          amountMinor: intent.amountMinor,
         });
 
         return {

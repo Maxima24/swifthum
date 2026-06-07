@@ -11,6 +11,7 @@ from src.services.formatters import (
     format_gift_received,
     format_history,
     format_notification,
+    format_receipt_verification,
     format_parse_confirmation,
     format_parse_unsure,
     format_payment_received,
@@ -128,6 +129,26 @@ class TestGifts:
     def test_escapes_counterparty(self):
         text = format_gift_received({"amountMinor": 1, "counterpartyName": "<b>x</b>"})
         assert "<b>x</b>" not in text and "&lt;b&gt;x&lt;/b&gt;" in text
+
+
+class TestReceiptVerification:
+    def test_valid(self):
+        out = format_receipt_verification({
+            "valid": True,
+            "receipt": {"amountMinor": 5_000_00, "from": "Ada", "to": "Bayo", "sourceType": "payment"},
+        })
+        assert "Verified" in out and "₦5,000.00" in out and "Ada" in out and "Bayo" in out
+
+    def test_invalid(self):
+        out = format_receipt_verification({"valid": False})
+        assert "Could not verify" in out and "tampered" in out
+
+    def test_escapes_names(self):
+        out = format_receipt_verification({
+            "valid": True,
+            "receipt": {"amountMinor": 1, "from": "<b>x</b>", "to": "y", "sourceType": "gift"},
+        })
+        assert "<b>x</b>" not in out and "&lt;b&gt;x&lt;/b&gt;" in out
 
 
 class TestDispatch:
