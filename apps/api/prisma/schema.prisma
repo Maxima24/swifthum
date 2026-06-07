@@ -155,3 +155,49 @@ model UsedNonce {
   tokenHash String   @id
   usedAt    DateTime @default(now())
 }
+
+// ─── Double-entry ledger (accounting system-of-record) ───────────────────────
+// Wallet remains the user-facing balance source-of-truth; its `wallet`
+// LedgerAccount is kept in lockstep by LedgerService. System accounts (treasury,
+// payment_hold, …) are singletons by kind (enforced by a partial unique index in
+// the migration, since Prisma can't express `WHERE ownerUserId IS NULL`).
+
+model LedgerAccount {
+  id           String   @id
+  kind         String   // wallet | treasury | payment_hold | escrow_hold | gift_unclaimed
+  ownerUserId  String?  @unique // set for kind=wallet; null for system singletons
+  currency     String   @default("NGN")
+  balanceMinor BigInt   @default(0) // cached: == Σ(credits) − Σ(debits) of its entries
+  createdAt    DateTime @default(now())
+
+  entries      LedgerEntry[]
+
+  @@index([kind])
+}
+
+model LedgerTransaction {
+  id             String   @id
+  kind           String   // seed | reserve | redeem | refund | gift_create | gift_claim | escrow_fund | escrow_release | …
+  idempotencyKey String?  @unique
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+
+  entries        LedgerEntry[]
+
+  @@index([createdAt])
+}
+
+model LedgerEntry {
+  id          String   @id
+  txId        String
+  accountId   String
+  direction   String   // debit | credit  (per tx: Σ debits == Σ credits)
+  amountMinor BigInt
+  createdAt   DateTime @default(now())
+
+  tx          LedgerTransaction @relation(fields: [txId], references: [id], onDelete: Cascade)
+  account     LedgerAccount     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, createdAt])
+  @@index([txId])
+}

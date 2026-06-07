@@ -16,6 +16,8 @@ import { PricesModule } from './prices/prices.module';
 import { RulesModule } from './rules/rules.module';
 import { InsightsModule } from './insights/insights.module';
 import { PaymentsModule } from './payments/payments.module';
+import { LedgerModule } from './ledger/ledger.module';
+import { IdempotencyModule } from './idempotency/idempotency.module';
 
 import { GlobalExceptionFilter } from './common/exception.filter';
 import { BigintSerializeInterceptor } from './common/serialize.interceptor';
@@ -26,6 +28,8 @@ import { HealthController } from './health/health.controller';
     ConfigModule.forRoot({ isGlobal: true, cache: true }),
     PrismaModule,
     RedisModule,
+    LedgerModule,
+    IdempotencyModule,
     AiModule,
     SwiftyexModule,
     BotModule,

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { LedgerService } from '../ledger/ledger.service';
 import { Errors } from '../common/errors';
 import { prefixedId } from '../common/ids';
 import { BotPushService } from '../bot/bot-push.service';
@@ -19,6 +20,7 @@ export class PaymentsService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly ledger: LedgerService,
     private readonly botPush: BotPushService,
     private readonly ai: AnthropicService,
     config: ConfigService,
@@ -61,15 +63,16 @@ export class PaymentsService {
 
     return this.prisma.$transaction(
       async (tx) => {
-        await tx.$executeRaw`SELECT 1 FROM "Wallet" WHERE "userId" = ${userId} FOR UPDATE`;
-
-        const wallet = await tx.wallet.findUnique({ where: { userId } });
-        if (!wallet) throw Errors.notFound('wallet not found');
-        if (wallet.balanceMinor < amount) throw Errors.insufficientBalance();
-
-        await tx.wallet.update({
-          where: { userId },
-          data: { balanceMinor: wallet.balanceMinor - amount },
+        // Reserve funds: wallet → payment_hold. LedgerService locks the accounts,
+        // asserts sufficient balance (throws insufficient_balance), and keeps the
+        // mirrored Wallet.balanceMinor in lockstep.
+        await this.ledger.transfer(tx, {
+          from: { wallet: userId },
+          to: { system: 'payment_hold' },
+          amountMinor: amount,
+          kind: 'reserve',
+          idempotencyKey: `reserve_${intentId}`,
+          metadata: { intentId },
         });
 
         await tx.paymentIntent.create({
@@ -166,10 +169,14 @@ export class PaymentsService {
         ]);
         if (!sender || !receiver) throw Errors.invalidOrExpired();
 
-        await tx.$executeRaw`SELECT 1 FROM "Wallet" WHERE "userId" = ${receiverId} FOR UPDATE`;
-        await tx.wallet.update({
-          where: { userId: receiverId },
-          data: { balanceMinor: { increment: intent.amountMinor } },
+        // Release the held funds to the receiver: payment_hold → receiver wallet.
+        await this.ledger.transfer(tx, {
+          from: { system: 'payment_hold' },
+          to: { wallet: receiverId },
+          amountMinor: intent.amountMinor,
+          kind: 'redeem',
+          idempotencyKey: `redeem_${intent.id}`,
+          metadata: { intentId: intent.id, senderId: intent.senderId },
         });
 
         await tx.paymentIntent.update({
@@ -236,10 +243,16 @@ export class PaymentsService {
         if (intent.consumedAt) throw Errors.alreadyRedeemed();
         if (intent.refundedAt) return { status: 'refunded' as const }; // idempotent
 
-        await tx.$executeRaw`SELECT 1 FROM "Wallet" WHERE "userId" = ${intent.senderId} FOR UPDATE`;
-        await tx.wallet.update({
-          where: { userId: intent.senderId },
-          data: { balanceMinor: { increment: intent.amountMinor } },
+        // Return the held funds: payment_hold → sender wallet. The shared
+        // `refund_<id>` key means cancel and the expiry sweep can never both
+        // refund the same intent (unique LedgerTransaction.idempotencyKey).
+        await this.ledger.transfer(tx, {
+          from: { system: 'payment_hold' },
+          to: { wallet: intent.senderId },
+          amountMinor: intent.amountMinor,
+          kind: 'refund',
+          idempotencyKey: `refund_${intent.id}`,
+          metadata: { intentId: intent.id, reason: 'cancel' },
         });
         await tx.paymentIntent.update({
           where: { id: intent.id },
@@ -326,10 +339,13 @@ export class PaymentsService {
           async (tx) => {
             const fresh = await tx.paymentIntent.findUnique({ where: { id: intent.id } });
             if (!fresh || fresh.consumedAt || fresh.refundedAt) return;
-            await tx.$executeRaw`SELECT 1 FROM "Wallet" WHERE "userId" = ${fresh.senderId} FOR UPDATE`;
-            await tx.wallet.update({
-              where: { userId: fresh.senderId },
-              data: { balanceMinor: { increment: fresh.amountMinor } },
+            await this.ledger.transfer(tx, {
+              from: { system: 'payment_hold' },
+              to: { wallet: fresh.senderId },
+              amountMinor: fresh.amountMinor,
+              kind: 'refund',
+              idempotencyKey: `refund_${fresh.id}`,
+              metadata: { intentId: fresh.id, reason: 'expiry' },
             });
             await tx.paymentIntent.update({
               where: { id: fresh.id },

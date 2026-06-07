@@ -59,7 +59,7 @@ async def amain() -> None:
     redis = Redis.from_url(settings.redis_url, decode_responses=True)
 
     async with ApiClient(settings.api_base_url, settings.internal_api_secret) as api:
-        dp.include_router(start_handler.build_router(settings))
+        dp.include_router(start_handler.build_router(api, settings))
         dp.include_router(help_handler.build_router(settings))
         dp.include_router(menu_handler.build_router(api, settings))
         dp.include_router(wallet_handler.build_router(api))
