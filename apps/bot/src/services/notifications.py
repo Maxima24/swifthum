@@ -48,8 +48,14 @@ async def run(bot: Bot, redis: Redis) -> None:
         try:
             await pubsub.subscribe(CHANNEL)
             log.info("notification listener subscribed", channel=CHANNEL)
-            async for message in pubsub.listen():
-                if not is_real_message(message):
+            # Poll with a short per-call timeout instead of the blocking
+            # `listen()`: an idle subscription with a socket read-timeout makes
+            # `listen()` RAISE on every quiet window (we saw a 5s "Timeout reading
+            # from redis" storm). `get_message(timeout=…)` returns None on an idle
+            # tick — no error, no reconnect — and a real message otherwise.
+            while True:
+                message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                if message is None:
                     continue
                 await _dispatch(bot, message.get("data"))
         except asyncio.CancelledError:
