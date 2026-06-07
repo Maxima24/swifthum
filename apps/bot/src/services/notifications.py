@@ -70,7 +70,14 @@ async def _dispatch(bot: Bot, raw: bytes | str | None) -> None:
         return
 
     ntype = payload.get("type")
-    text = format_notification(payload)
+    # A formatter must never kill the listener: an unhandled raise here would
+    # propagate out of `pubsub.listen()` in run() and stop ALL future DMs
+    # (including payments) until the bot restarts.
+    try:
+        text = format_notification(payload)
+    except Exception as e:  # noqa: BLE001 — defensive: keep the loop alive
+        log.warning("format_notification raised", type=ntype, error=str(e))
+        return
     if not text:
         log.info("notification type not recognized", type=ntype)
         return

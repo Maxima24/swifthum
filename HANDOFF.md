@@ -44,6 +44,12 @@ curl -fsS https://swifthum-api.quickbiteltd.org/health   # → {"status":"ok"}
 - **Sign-in "no initData"** — `@telegram-apps/sdk` v3 needs `initData.restore()`; `getInitDataRaw()` now tries `window.Telegram.WebApp.initData` → `retrieveRawInitData()` → `initData.raw()`. Must open the app via the **bot menu button** (Telegram only injects initData then).
 - **Contract mismatches (mock vs real backend)** — fixed: suggestions wrap `{ id, reason, rule:{…} }`; `/intents` accepts `currency`. The API's `forbidNonWhitelisted` rejects any field not in the DTO — keep DTOs in sync with what the mini-app sends.
 - **Payment money model** — debit-on-generate (reserve); refunded by **cancel** (`POST /intents/:id/cancel`), **leave-screen auto-cancel**, or the **120s expiry sweep**. `redeem` rejects `refundedAt` intents (no double-spend). Sender polls `GET /intents/:id` for the "Paid ✓" state.
+- **Bot DMs require the recipient to have pressed `/start`** — Telegram bots **cannot initiate** a chat. A notification recipient who only ever used the **Mini App** (never `/start`ed @swifthum_bot) gets a `send_message` **403** and no DM, even though the API published fine. The *acting* party (tapped a bot button / opened a deep-link) has started it and is reachable. For demos, have every account press `/start` once. The mini-app escrow detail screen **polls** (`useEscrow`, 5s), so in-app state still updates without a DM. **Diagnose** with:
+  ```bash
+  docker logs --since 5m swifthum-api  | grep -i publishing     # did the API publish?
+  docker logs --since 5m swifthum-bot  | grep -iE "dispatching notification|not recognized|send_message failed"
+  ```
+  `publishing …` + bot `send_message failed … 403` → recipient hasn't `/start`ed. `not recognized` → stale bot image (`$C build --no-cache bot && $C up -d bot`). No `publishing …` → API didn't publish (real bug). The bot listener now wraps `format_notification` in try/except so one bad payload can't silently kill all future DMs.
 
 ## Open items / TODO
 - **Rotate all secrets** that were shown in chat screenshots (TELEGRAM_BOT_TOKEN via @BotFather `/revoke`, JWT_SECRET, INTERNAL_API_SECRET, PAYMENT_TOKEN_SECRET, SWIFTYEX_KEY_ENC_SECRET, POSTGRES_PASSWORD, CMC_API_KEY).
