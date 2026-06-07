@@ -49,6 +49,31 @@ export function Pay() {
           </Button>
         </div>
 
+        <ListGroup title="Gifts">
+          <ListRow
+            icon="send"
+            iconTone="accent"
+            label="Send a gift"
+            subtitle="Lock NGN into a link — opening it onboards anyone instantly."
+            chevron
+            onClick={() => {
+              haptic('medium');
+              navigate('/pay/gifts');
+            }}
+          />
+          <ListRow
+            icon="sparkles"
+            iconTone="muted"
+            label="My gifts"
+            subtitle="Track claims, copy links, or cancel unclaimed ones."
+            chevron
+            onClick={() => {
+              haptic('light');
+              navigate('/pay/gifts/my');
+            }}
+          />
+        </ListGroup>
+
         <ListGroup title="How it works">
           <ListRow
             icon="zap"

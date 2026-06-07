@@ -6,6 +6,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.services.formatters import (
     format_balance,
+    format_gift_claimed,
+    format_gift_expired,
+    format_gift_received,
     format_history,
     format_notification,
     format_parse_confirmation,
@@ -109,6 +112,24 @@ class TestPayments:
         assert "&lt;b&gt;x&lt;/b&gt;" in text
 
 
+class TestGifts:
+    def test_received(self):
+        text = format_gift_received({"amountMinor": 5_000_00, "counterpartyName": "Ada"})
+        assert "received a gift" in text and "Ada" in text and "₦5,000.00" in text
+
+    def test_claimed(self):
+        text = format_gift_claimed({"amountMinor": 5_000_00, "counterpartyName": "Bayo"})
+        assert "Bayo" in text and "claimed" in text and "₦5,000.00" in text
+
+    def test_expired(self):
+        text = format_gift_expired({"amountMinor": 2_500_00})
+        assert "expired" in text and "₦2,500.00" in text
+
+    def test_escapes_counterparty(self):
+        text = format_gift_received({"amountMinor": 1, "counterpartyName": "<b>x</b>"})
+        assert "<b>x</b>" not in text and "&lt;b&gt;x&lt;/b&gt;" in text
+
+
 class TestDispatch:
     def test_rule_fired(self):
         out = format_notification({"type": "rule_fired", "data": {
@@ -119,6 +140,11 @@ class TestDispatch:
     def test_payment_received(self):
         out = format_notification({"type": "payment_received", "data": {"amountMinor": 1, "counterpartyName": "Z"}})
         assert out and "Received" in out
+
+    def test_gift_dispatch(self):
+        for t in ("gift_received", "gift_claimed", "gift_expired"):
+            out = format_notification({"type": t, "data": {"amountMinor": 100, "counterpartyName": "Z"}})
+            assert out and "gift" in out.lower()
 
     def test_unknown_type_returns_none(self):
         assert format_notification({"type": "no_such_type", "data": {}}) is None

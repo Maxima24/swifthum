@@ -68,8 +68,17 @@ $C up -d --build api worker bot # then roll the new code
 ```
 Skipping the backfill → existing users see `insufficient_balance` on send (ledger balance reads 0). Verify: each user's `Wallet.balanceMinor == wallet LedgerAccount balance` (the script prints mismatches and exits non-zero if any).
 
-### Next: Stage 2 — Gift Links (§1)
-`Gift` model + FSM, `POST /gifts` (`wallet→gift_unclaimed`) returning `t.me/<bot>?start=gift_<claimCode>`, `POST /gifts/claim` (auto-provision recipient, `gift_unclaimed→wallet`), expiry sweep (mirror `refundExpiredIntents`), Mini-App create + "my gifts". The bot claim path is already wired.
+## Hackfest build — Stage 2 (Gift Links §1) DONE
+Full stack, all green (API tsc + `nest build` + 122 jest; mini-app tsc + vite build; bot 49 pytest). Spec in [BACKEND.md §19](BACKEND.md).
+- **API** `apps/api/src/gifts/` — `POST /gifts` (`wallet→gift_unclaimed`, returns `t.me/<bot>?start=gift_<claimCode>`, `Idempotency-Key` aware), `POST /gifts/claim` (single-use conditional `updateMany WHERE state='UNCLAIMED'`, `gift_unclaimed→wallet`, tags `acquiredVia='gift'`), `GET /gifts`, `POST /gifts/:id/cancel`. FSM `UNCLAIMED→CLAIMED|EXPIRED|RECLAIMED`. Migration `20260607130000_gift_links` (Gift table + `User.acquiredVia`).
+- **Worker** — `GiftsService.expireUnclaimed()` hooked into the watcher tick (refunds unclaimed gifts past `GIFT_TTL_HOURS`, default 168h; shares the `gift_refund_<id>` ledger key with cancel so no double-refund).
+- **Notifications** — `gift_received` / `gift_claimed` / `gift_expired` (NestJS union → Python formatters).
+- **Bot** — `/gift` opens the mini-app create screen; claim path was already wired in Stage 1.
+- **Mini-app** — `GiftCreate` (amount + message → QR/share link) + `GiftList` ("my gifts" with state + cancel); routes `/pay/gifts`, `/pay/gifts/my`; entry points on Pay; gift mocks added for dev mode.
+- **New env**: `BOT_USERNAME` (for deep-links, default `swifthum_bot`) + `GIFT_TTL_HOURS` (default 168). **Set `BOT_USERNAME` in prod `.env`** or links point at the wrong bot. No backfill (gift tables start empty) — migration auto-applies on `up`.
+
+### Next: Stage 3 — Verifiable Receipts (§2)
+Signer (`common/signed-token.ts`) + `SIGNED_TOKEN_SECRET` already exist. Add `Receipt` model, emit on every completed movement (redeem, gift claim, escrow release), `/r/:id` shareable mini-app route, server-side `verify()` (+ bot `/verify`), URL-tamper demo.
 
 ## Earlier roadmap (bot hub — partially superseded by hackfest work)
 - **Phase 1: interactive bot hub** — `/menu` inline hub + quick commands, SwiftyEx read features.

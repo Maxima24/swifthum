@@ -51,6 +51,23 @@ def format_payment_sent(data: dict[str, Any]) -> str:
     return f"\U0001f4e4 Sent <b>{amount}</b> to <b>{receiver}</b>."
 
 
+def format_gift_received(data: dict[str, Any]) -> str:
+    amount = kobo_to_naira_str(int(data.get("amountMinor", 0)))
+    sender = escape(str(data.get("counterpartyName", "someone")))
+    return f"\U0001f381 You received a gift of <b>{amount}</b> from <b>{sender}</b>!"
+
+
+def format_gift_claimed(data: dict[str, Any]) -> str:
+    amount = kobo_to_naira_str(int(data.get("amountMinor", 0)))
+    recipient = escape(str(data.get("counterpartyName", "someone")))
+    return f"\U0001f381 <b>{recipient}</b> claimed your gift of <b>{amount}</b>."
+
+
+def format_gift_expired(data: dict[str, Any]) -> str:
+    amount = kobo_to_naira_str(int(data.get("amountMinor", 0)))
+    return f"\U0001f381 Your unclaimed gift of <b>{amount}</b> expired and was refunded to your wallet."
+
+
 def format_weekly_digest(data: dict[str, Any]) -> str:
     rules = int(data.get("rulesFiredCount", 0))
     txns = int(data.get("transactionsCount", 0))
@@ -77,6 +94,12 @@ def format_notification(payload: dict[str, Any]) -> str | None:
         return format_payment_received(data)
     if t == "payment_sent":
         return format_payment_sent(data)
+    if t == "gift_received":
+        return format_gift_received(data)
+    if t == "gift_claimed":
+        return format_gift_claimed(data)
+    if t == "gift_expired":
+        return format_gift_expired(data)
     if t == "weekly_digest":
         return format_weekly_digest(data)
     return None

@@ -25,6 +25,16 @@ export type NotificationPayload =
     }
   | {
       telegramId: number;
+      type: 'gift_received' | 'gift_claimed';
+      data: { amountMinor: number; counterpartyName: string };
+    }
+  | {
+      telegramId: number;
+      type: 'gift_expired';
+      data: { amountMinor: number };
+    }
+  | {
+      telegramId: number;
       type: 'weekly_digest';
       data: {
         rulesFiredCount: number;

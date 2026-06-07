@@ -15,6 +15,7 @@ model User {
   telegramId           BigInt           @unique
   displayName          String
   notificationsEnabled Boolean          @default(true)
+  acquiredVia          String?          // funnel tag for users onboarded via a feature (e.g. 'gift')
   createdAt            DateTime         @default(now())
 
   wallet         Wallet?
@@ -24,6 +25,8 @@ model User {
   swiftyAccount  SwiftyexAccount?
   swiftyHoldings SwiftyexHolding[]
   swiftyOrders   SwiftyexOrder[]
+  giftsSent      Gift[]            @relation("GiftsSent")
+  giftsClaimed   Gift[]            @relation("GiftsClaimed")
 }
 
 model SwiftyexAccount {
@@ -200,4 +203,30 @@ model LedgerEntry {
 
   @@index([accountId, createdAt])
   @@index([txId])
+}
+
+// ─── Gift Links (§1) ─────────────────────────────────────────────────────────
+// A sender locks funds into a shareable claim link. Money sits in the
+// `gift_unclaimed` LedgerAccount until claimed/refunded. FSM enforced in the
+// service layer: UNCLAIMED → CLAIMED | EXPIRED | RECLAIMED.
+
+model Gift {
+  id              String    @id
+  senderId        String
+  asset           String    @default("NGN")
+  amountMinor     BigInt
+  message         String?
+  claimCode       String    @unique // the capability — high-entropy, single-use
+  state           String    @default("UNCLAIMED")
+  claimedByUserId String?
+  ttlExpiresAt    DateTime
+  stateUpdatedAt  DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  claimedAt       DateTime?
+
+  sender          User      @relation("GiftsSent", fields: [senderId], references: [id], onDelete: Cascade)
+  claimedBy       User?     @relation("GiftsClaimed", fields: [claimedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([senderId, createdAt])
+  @@index([state, ttlExpiresAt]) // drives the worker expiry sweep
 }

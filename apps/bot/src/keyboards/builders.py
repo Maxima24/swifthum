@@ -25,6 +25,14 @@ def webapp_launch_kb(miniapp_url: str, text: str = "🎯 Open SwiftHum") -> Inli
     )
 
 
+def gift_create_kb(miniapp_url: str) -> InlineKeyboardMarkup:
+    """WebApp button opening the Mini App's gift-create screen (/pay/gifts)."""
+    deep_link = f"{miniapp_url.rstrip('/')}/pay/gifts"
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="🎁 Create a gift", web_app=WebAppInfo(url=deep_link)),
+    ]])
+
+
 def rule_actions_kb(rule_id: str, is_paused: bool) -> InlineKeyboardMarkup:
     """One-button keyboard: Pause if active, Resume if paused."""
     if is_paused:

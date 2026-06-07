@@ -5,6 +5,7 @@ import { PricesService } from '../prices/prices.service';
 import { RulesService } from '../rules/rules.service';
 import { SwiftyexService } from '../swiftyex/swiftyex.service';
 import { PaymentsService } from '../payments/payments.service';
+import { GiftsService } from '../gifts/gifts.service';
 import { BotPushService } from '../bot/bot-push.service';
 import { AnthropicService } from '../ai/anthropic.service';
 import { evaluate } from '../rules/rule-evaluator';
@@ -40,6 +41,7 @@ export class WatcherProcessor {
     private readonly rules: RulesService,
     private readonly swiftyex: SwiftyexService,
     private readonly payments: PaymentsService,
+    private readonly gifts: GiftsService,
     private readonly botPush: BotPushService,
     private readonly ai: AnthropicService,
     private readonly _config: ConfigService,
@@ -90,11 +92,12 @@ export class WatcherProcessor {
 
     await this.rules.decayStaleFired();
 
-    // Piggy-back the refund sweep onto the watcher tick.
+    // Piggy-back the refund sweeps onto the watcher tick.
     const refunded = await this.payments.refundExpiredIntents();
+    const giftsExpired = await this.gifts.expireUnclaimed();
 
     this.logger.log(
-      `tick done in ${Date.now() - started}ms (rules=${active.length} fired=${fired} refunded=${refunded})`,
+      `tick done in ${Date.now() - started}ms (rules=${active.length} fired=${fired} refunded=${refunded} giftsExpired=${giftsExpired})`,
     );
   }
 
