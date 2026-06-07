@@ -85,8 +85,18 @@ Full stack, all green (API tsc + `nest build` + 127 jest; mini-app tsc + vite bu
 - **No new required env** (`SIGNED_TOKEN_SECRET` already in `.env.example`; `MINIAPP_URL` already shared). **No backfill** — receipts table starts empty; migration auto-runs on `up`.
 - **Build footgun fixed**: `tsBuildInfoFile` now lives in `dist/` (was a stray root `*.tsbuildinfo` making `rm -rf dist && nest build` silently emit nothing); `*.tsbuildinfo` gitignored. Prod Docker build was never affected (fresh container).
 
-### Next: Stage 4 — P2P Escrow (§3)
-Largest feature. `Escrow` + `EscrowEvent` models, FSM (`CREATED→FUNDED→PAID_MARKED→RELEASED/COMPLETED` + DECLINED/CANCELLED/DISPUTED→RESOLVED_*), `escrow_hold` ledger account (already a system-account kind), bot inline Accept/Decline/Release buttons + DMs, mini-app escrow dashboard, dispute → admin/AI resolution. Emit a receipt on release (reuse `ReceiptsService.emit` with `sourceType:'escrow'`).
+## Hackfest build — Stage 4 (P2P Escrow §3) DONE
+Full stack, all green (API tsc + `nest build` + 147 jest; mini-app tsc + vite build; bot 57 pytest). Spec in [BACKEND.md §21](BACKEND.md). **All four Builders-Track features now complete.**
+- **API** `apps/api/src/escrow/` — FSM `PROPOSED→ACCEPTED→PAID_MARKED→COMPLETED` (+ DECLINED/CANCELLED/EXPIRED, DISPUTED→RESOLVED_RELEASED|RESOLVED_REFUNDED), service-enforced via `assertTransition` + conditional `updateMany WHERE state=<from>`. Endpoints: `POST /escrows` (fund `buyer→escrow_hold`, returns `escrow_<code>` link), `/escrow/join` (single-use bind), accept/decline/cancel/mark-paid/release/dispute, `GET /escrows[/:id]`. Shared ledger keys (`escrow_fund/refund/release_<id>`) so funds never double-move; receipt emitted on release. Migration `20260607150000_escrow` (Escrow + append-only EscrowEvent).
+- **Admin dispute resolve** — internal `POST /admin/escrows/:id/resolve` (`X-Internal-Secret` = `INTERNAL_API_SECRET`), AI-assisted via new `AnthropicService.resolveDispute` (3s timeout, static `refund` fallback — works even with `ANTHROPIC_API_KEY` unset).
+- **Worker** — `expireProposed()` in the watcher tick refunds un-accepted (PROPOSED) escrows past `ESCROW_TTL_HOURS` (default 72).
+- **Bot** — `escrow_<code>` deep-link join → Accept/Decline inline buttons; `/escrow` lists with role/state-aware action buttons + callbacks (notifications are text-only, so buttons come from these direct interactions); 7 escrow event DMs.
+- **Mini-app** — `/pay/escrow` (list), `/pay/escrow/new` (create + share invite/QR), `/pay/escrow/:id` (detail with **server-driven countdown** from `ttlExpiresAt`, state-aware actions, event timeline). Pay entry + dev mocks.
+- **New env**: `ESCROW_TTL_HOURS=72`. No backfill — migration auto-runs on `up`.
+- Extended `module-wiring.spec` to assert `EscrowModule` is registered in both app + worker (Stage-3 DI-crash guard).
+
+### All Builders-Track features shipped (Stages 1–4)
+Ledger → Gift Links → Receipts → Escrow. Remaining: polish + the 3-min demo script (HACKFEST_PLAN §7).
 
 ## Earlier roadmap (bot hub — partially superseded by hackfest work)
 - **Phase 1: interactive bot hub** — `/menu` inline hub + quick commands, SwiftyEx read features.

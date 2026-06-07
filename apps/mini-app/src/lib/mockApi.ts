@@ -5,6 +5,8 @@ import {
   mockSuggestions,
 } from '../mocks/rules';
 import type {
+  EscrowDetail,
+  EscrowEventItem,
   Execution,
   GiftListItem,
   PaymentIntent,
@@ -37,6 +39,25 @@ let receipts: ReceiptListItem[] = [];
 function pushReceipt(r: ReceiptListItem) {
   receipts = [r, ...receipts];
 }
+
+// In-memory escrows (mock is single-user: the demo user is always the buyer)
+const escrows: (EscrowDetail & { joinCode: string })[] = [];
+const ESCROW_ACTION_EVENT: Record<string, string> = {
+  accept: 'accepted',
+  decline: 'declined',
+  cancel: 'cancelled',
+  'mark-paid': 'paid_marked',
+  release: 'released',
+  dispute: 'disputed',
+};
+const ESCROW_ACTION_STATE: Record<string, EscrowDetail['state']> = {
+  accept: 'ACCEPTED',
+  decline: 'DECLINED',
+  cancel: 'CANCELLED',
+  'mark-paid': 'PAID_MARKED',
+  release: 'COMPLETED',
+  dispute: 'DISPUTED',
+};
 
 // In-memory SwiftyEx account state
 let swiftyexAccount: SwiftyexAccountStatus = { linked: false };
@@ -331,6 +352,71 @@ export async function mockApi<T>(path: string, init?: RequestInit): Promise<T> {
         createdAt: r.createdAt,
       },
     } as T;
+  }
+
+  // ─── Escrow ──────────────────────────────────────────────────
+  if (path === '/escrows' && method === 'POST') {
+    const amountMinor = body.amountMinor as number;
+    if (amountMinor > wallet.balanceMinor) throw new Error('400 insufficient_balance');
+    const id = nextId('esc');
+    const joinCode = Math.random().toString(36).slice(2, 14) + Math.random().toString(36).slice(2, 12);
+    const now = new Date();
+    const ttlExpiresAt = new Date(now.getTime() + 72 * 3600 * 1000).toISOString();
+    const detail: EscrowDetail & { joinCode: string } = {
+      id,
+      role: 'buyer',
+      state: 'PROPOSED',
+      amountMinor,
+      currency: 'NGN',
+      terms: body.terms || undefined,
+      ttlExpiresAt,
+      createdAt: now.toISOString(),
+      joinCode,
+      deepLink: `https://t.me/swifthum_bot?start=escrow_${joinCode}`,
+      events: [{ type: 'proposed', actorId: 'u_demo', metadata: {}, createdAt: now.toISOString() }],
+    };
+    escrows.unshift(detail);
+    wallet = { ...wallet, balanceMinor: wallet.balanceMinor - amountMinor };
+    return {
+      escrowId: id,
+      joinCode,
+      deepLink: detail.deepLink,
+      amountMinor,
+      currency: 'NGN',
+      terms: detail.terms,
+      state: 'PROPOSED',
+      ttlExpiresAt,
+      createdAt: detail.createdAt,
+    } as T;
+  }
+  if (path === '/escrows' && method === 'GET') {
+    return { items: escrows.map(({ events: _events, joinCode: _jc, ...s }) => s) } as T;
+  }
+  const escrowActionMatch = path.match(/^\/escrows\/([^/]+)\/(accept|decline|cancel|mark-paid|release|dispute)$/);
+  if (escrowActionMatch && method === 'POST') {
+    const [, eid, action] = escrowActionMatch;
+    const e = escrows.find((x) => x.id === eid);
+    if (!e) throw new Error('404 not_found');
+    e.state = ESCROW_ACTION_STATE[action];
+    const ev: EscrowEventItem = {
+      type: ESCROW_ACTION_EVENT[action],
+      actorId: 'u_demo',
+      metadata: {},
+      createdAt: new Date().toISOString(),
+    };
+    e.events = [...e.events, ev];
+    if (action === 'cancel' || action === 'decline') {
+      wallet = { ...wallet, balanceMinor: wallet.balanceMinor + e.amountMinor };
+    }
+    const { events: _ev, joinCode: _jc, ...summary } = e;
+    return summary as T;
+  }
+  const escrowDetailMatch = path.match(/^\/escrows\/([^/]+)$/);
+  if (escrowDetailMatch && method === 'GET') {
+    const e = escrows.find((x) => x.id === escrowDetailMatch[1]);
+    if (!e) throw new Error('404 not_found');
+    const { joinCode: _jc, ...detail } = e;
+    return detail as T;
   }
 
   // ─── SwiftyEx account / holdings ─────────────────────────────

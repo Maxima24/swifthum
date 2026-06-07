@@ -15,6 +15,13 @@ CB_RULE_PAUSE = "rule:pause:"
 CB_RULE_RESUME = "rule:resume:"
 CB_PARSE_CANCEL = "parse:cancel"
 CB_MENU = "menu:"  # menu:<section>  e.g. menu:home, menu:prices, menu:sx:link
+# Escrow action callbacks: esc:<action>:<escrowId>
+CB_ESCROW_ACCEPT = "esc:accept:"
+CB_ESCROW_DECLINE = "esc:decline:"
+CB_ESCROW_CANCEL = "esc:cancel:"
+CB_ESCROW_MARKPAID = "esc:markpaid:"
+CB_ESCROW_RELEASE = "esc:release:"
+CB_ESCROW_DISPUTE = "esc:dispute:"
 
 
 def webapp_launch_kb(miniapp_url: str, text: str = "🎯 Open SwiftHum") -> InlineKeyboardMarkup:
@@ -31,6 +38,43 @@ def gift_create_kb(miniapp_url: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text="🎁 Create a gift", web_app=WebAppInfo(url=deep_link)),
     ]])
+
+
+def escrow_create_kb(miniapp_url: str) -> InlineKeyboardMarkup:
+    """WebApp button opening the Mini App's escrow-create screen."""
+    deep_link = f"{miniapp_url.rstrip('/')}/pay/escrow/new"
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="🛡 New escrow", web_app=WebAppInfo(url=deep_link)),
+    ]])
+
+
+# Which escrow actions a viewer can take, keyed by (role, state). The "waiting"
+# party in ACCEPTED/PAID_MARKED can always dispute.
+def escrow_actions_kb(escrow: dict) -> InlineKeyboardMarkup | None:
+    eid = str(escrow.get("id", ""))
+    role = escrow.get("role")
+    state = escrow.get("state")
+    rows: list[list[InlineKeyboardButton]] = []
+    if role == "seller" and state == "PROPOSED":
+        rows.append([
+            InlineKeyboardButton(text="✅ Accept", callback_data=f"{CB_ESCROW_ACCEPT}{eid}"),
+            InlineKeyboardButton(text="❌ Decline", callback_data=f"{CB_ESCROW_DECLINE}{eid}"),
+        ])
+    elif role == "buyer" and state == "PROPOSED":
+        rows.append([InlineKeyboardButton(text="🚫 Cancel", callback_data=f"{CB_ESCROW_CANCEL}{eid}")])
+    elif role == "buyer" and state == "ACCEPTED":
+        rows.append([
+            InlineKeyboardButton(text="✔️ Mark paid", callback_data=f"{CB_ESCROW_MARKPAID}{eid}"),
+            InlineKeyboardButton(text="⚠️ Dispute", callback_data=f"{CB_ESCROW_DISPUTE}{eid}"),
+        ])
+    elif role == "seller" and state == "PAID_MARKED":
+        rows.append([
+            InlineKeyboardButton(text="💸 Release", callback_data=f"{CB_ESCROW_RELEASE}{eid}"),
+            InlineKeyboardButton(text="⚠️ Dispute", callback_data=f"{CB_ESCROW_DISPUTE}{eid}"),
+        ])
+    elif state in ("ACCEPTED", "PAID_MARKED"):
+        rows.append([InlineKeyboardButton(text="⚠️ Dispute", callback_data=f"{CB_ESCROW_DISPUTE}{eid}")])
+    return InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
 
 
 def rule_actions_kb(rule_id: str, is_paused: bool) -> InlineKeyboardMarkup:

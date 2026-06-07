@@ -83,6 +83,17 @@ export function Pay() {
               navigate('/pay/receipts');
             }}
           />
+          <ListRow
+            icon="wallet"
+            iconTone="accent"
+            label="Escrow"
+            subtitle="Lock NGN safely until both sides complete the deal."
+            chevron
+            onClick={() => {
+              haptic('light');
+              navigate('/pay/escrow');
+            }}
+          />
         </ListGroup>
 
         <ListGroup title="How it works">

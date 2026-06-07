@@ -859,9 +859,11 @@ Use `vitest` or `jest` — whichever Nest's default is in this repo's version.
 - [ ] `GET /transactions`
 - [x] `POST /gifts` · `POST /gifts/claim` · `GET /gifts` · `POST /gifts/:id/cancel`  (see §19)
 - [x] `GET /receipts` · `GET /receipts/verify?token=` (public)  (see §20)
+- [x] `POST /escrows` · `/escrow/join` · `/escrows/:id/{accept,decline,cancel,mark-paid,release,dispute}` · `GET /escrows[/:id]` · admin `POST /admin/escrows/:id/resolve`  (see §21)
 - [ ] Worker: rule evaluator (BullMQ, repeating)
 - [ ] Worker: expired-intent refunder
 - [x] Worker: expired-gift refunder (§19)
+- [x] Worker: expired-escrow (PROPOSED) refunder (§21)
 - [ ] Bot push channel (Redis pub/sub `swifthum.notifications`)
 - [ ] SwiftyEx client interface + simulated adapter
 - [ ] Anthropic service with prompt caching + static fallback
@@ -968,3 +970,59 @@ public page `/r/:id` (rendered outside AuthGate) and the bot `/verify <token>`.
 ### Surfaces
 - Mini-App: public `/r/:receiptId` verify page + a `/pay/receipts` list (share/copy/view).
 - Bot: `/verify <token>` (accepts a raw token or a full receipt link).
+
+---
+
+## 21. P2P Escrow (Hackfest §3)
+
+Two parties; money locked in the `escrow_hold` ledger account from funding until
+release/refund/resolution — *safe by construction*. **Roles:** creator = buyer /
+funder; counterparty = seller / receiver (bound via a shareable link). All money
+via `LedgerService.transfer`; a receipt (§20, `sourceType:'escrow'`) is emitted on
+every release. TTL server-owned (`ESCROW_TTL_HOURS`, default 72).
+
+**FSM** (service-enforced, conditional `updateMany WHERE state=<from>` per move):
+```
+PROPOSED   → ACCEPTED | DECLINED | CANCELLED | EXPIRED
+ACCEPTED   → PAID_MARKED | DISPUTED
+PAID_MARKED→ COMPLETED | DISPUTED
+DISPUTED   → RESOLVED_RELEASED | RESOLVED_REFUNDED
+```
+Ledger keys are shared across paths that reach them: fund `escrow_fund_<id>`,
+refund `escrow_refund_<id>` (decline/cancel/expire/resolve-refund), release
+`escrow_release_<id>` (release/resolve-release) — so funds never double-move.
+Every transition appends an append-only `EscrowEvent`.
+
+### Party endpoints (authed)
+- `POST /escrows` `{ amountMinor, terms? }` (Idempotency-Key aware) — funds
+  `buyer→escrow_hold`, PROPOSED. Returns `{ escrowId, joinCode, deepLink:
+  t.me/<bot>?start=escrow_<code>, amountMinor, terms, state, ttlExpiresAt }`.
+  Rejects insufficient funds before any state change.
+- `POST /escrow/join` `{ joinCode }` (bot deep-link) — single-use bind of the
+  counterparty (`updateMany WHERE counterpartyId IS NULL AND state='PROPOSED'`);
+  self-join rejected. Returns the viewer-relative summary (role `seller`).
+- `POST /escrows/:id/accept` · `/decline`(seller) · `/cancel`(buyer, PROPOSED) ·
+  `/mark-paid`(buyer) · `/release`(seller, PAID_MARKED) · `/dispute`(either).
+- `GET /escrows` (list, role+state) · `GET /escrows/:id` (detail + events +
+  `ttlExpiresAt` for the server-driven countdown).
+
+Each returns a viewer-relative summary: `{ id, role: 'buyer'|'seller'|'observer',
+state, amountMinor, currency, terms?, counterparty?: { displayName }, ttlExpiresAt,
+createdAt, deepLink? }` (deepLink only for the creator while PROPOSED).
+
+### Admin (internal — `X-Internal-Secret` = `INTERNAL_API_SECRET`)
+- `POST /admin/escrows/:id/resolve` `{ decision?: 'release'|'refund', aiAssisted?:
+  boolean }` — DISPUTED → RESOLVED_*. No explicit decision + `aiAssisted` →
+  `AnthropicService.resolveDispute` (3s timeout, static fallback = `refund`).
+  Moves funds out of `escrow_hold`; emits a receipt on release.
+
+### Notifications (text DMs) + worker
+- Events: `escrow_accepted|declined|marked_paid|completed|disputed|resolved|expired`.
+- Worker sweep: PROPOSED past `ttlExpiresAt` → EXPIRED + refund buyer.
+
+### Surfaces
+- Bot: `escrow_<code>` deep-link join (Accept/Decline buttons) + `/escrow` (lists
+  with role/state-aware inline buttons; notification DMs are text-only so action
+  buttons come from these direct interactions).
+- Mini-App: `/pay/escrow` (list), `/pay/escrow/new` (create + share invite),
+  `/pay/escrow/:id` (detail, server-driven countdown, actions, event timeline).

@@ -6,6 +6,7 @@ import {
   DIGEST_SUMMARY_SYSTEM_PROMPT,
   FRAUD_SCORE_SYSTEM_PROMPT,
   PARSE_PAYMENT_SYSTEM_PROMPT,
+  RESOLVE_DISPUTE_SYSTEM_PROMPT,
   SUGGEST_RULES_SYSTEM_PROMPT,
 } from './prompts';
 
@@ -42,6 +43,7 @@ const FRAUD_SCORE_TIMEOUT_MS = 3000;
 const DIGEST_SUMMARY_TIMEOUT_MS = 3000;
 const PARSE_PAYMENT_AMOUNT_MAX_KOBO = 10_000_000; // ₦100,000 — anything larger is treated as a parse error
 const FRAUD_SCORE_FALLBACK = 0.1; // matches the PaymentIntent.riskScore column default
+const RESOLVE_DISPUTE_TIMEOUT_MS = 3000;
 
 export interface ParsePaymentResult {
   intent: 'send' | null;
@@ -61,6 +63,18 @@ export interface FraudScoreInput {
 
 export interface FraudScoreResult {
   score: number;
+  reasoning: string;
+}
+
+export interface ResolveDisputeInput {
+  amountMinor: number;
+  terms: string;
+  buyerMarkedPaid: boolean;
+  events: string[];
+}
+
+export interface ResolveDisputeResult {
+  decision: 'release' | 'refund';
   reasoning: string;
 }
 
@@ -234,6 +248,60 @@ export class AnthropicService {
     } catch (err) {
       this.logger.warn(`digestSummary failed (${(err as Error).message})`);
       return '';
+    }
+  }
+
+  /**
+   * Suggest a dispute resolution (release to seller vs refund to buyer) with a
+   * one-line reasoning. Mirrors scoreFraud: prompt-cached system block, 3s
+   * timeout, safe static fallback (`refund` — the conservative default) on
+   * no-key / timeout / bad JSON. Advisory only — an admin still confirms.
+   */
+  async resolveDispute(args: ResolveDisputeInput): Promise<ResolveDisputeResult> {
+    if (!this.client) return { decision: 'refund', reasoning: 'no_api_key' };
+
+    try {
+      const res = await this.client.messages.create(
+        {
+          model: this.model,
+          max_tokens: 128,
+          system: [
+            {
+              type: 'text',
+              text: RESOLVE_DISPUTE_SYSTEM_PROMPT,
+              cache_control: { type: 'ephemeral' },
+            },
+          ],
+          messages: [{ role: 'user', content: JSON.stringify(args) }],
+        },
+        { timeout: RESOLVE_DISPUTE_TIMEOUT_MS },
+      );
+
+      const textBlock = res.content.find((b) => b.type === 'text');
+      const raw = textBlock && 'text' in textBlock ? textBlock.text : '';
+      const parsed = this.parseDisputeJson(raw);
+      return parsed ?? { decision: 'refund', reasoning: 'bad_json' };
+    } catch (err) {
+      this.logger.warn(`resolveDispute failed (${(err as Error).message}); using fallback`);
+      return { decision: 'refund', reasoning: 'timeout_or_error' };
+    }
+  }
+
+  private parseDisputeJson(text: string): ResolveDisputeResult | null {
+    if (!text) return null;
+    const stripped = text
+      .trim()
+      .replace(/^```(?:json)?/i, '')
+      .replace(/```$/, '')
+      .trim();
+    try {
+      const parsed = JSON.parse(stripped) as Record<string, unknown>;
+      const decision = parsed.decision === 'release' ? 'release' : 'refund';
+      const reasoning =
+        typeof parsed.reasoning === 'string' ? parsed.reasoning.trim().slice(0, 160) : '';
+      return { decision, reasoning };
+    } catch {
+      return null;
     }
   }
 
