@@ -16,6 +16,7 @@ import { PricesModule } from './prices/prices.module';
 import { RulesModule } from './rules/rules.module';
 import { InsightsModule } from './insights/insights.module';
 import { PaymentsModule } from './payments/payments.module';
+import { GiftsModule } from './gifts/gifts.module';
 import { LedgerModule } from './ledger/ledger.module';
 import { IdempotencyModule } from './idempotency/idempotency.module';
 
@@ -40,6 +41,7 @@ import { HealthController } from './health/health.controller';
     RulesModule,
     InsightsModule,
     PaymentsModule,
+    GiftsModule,
   ],
   controllers: [HealthController],
   providers: [

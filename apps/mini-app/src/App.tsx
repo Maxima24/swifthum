@@ -6,6 +6,8 @@ import { Settings } from './routes/Settings';
 import { Pay } from './routes/Pay';
 import { Send } from './routes/Send';
 import { Receive } from './routes/Receive';
+import { GiftCreate } from './routes/GiftCreate';
+import { GiftList } from './routes/GiftList';
 import { TabBar } from './components/TabBar';
 import { Sidebar } from './components/Sidebar';
 import { Shell } from './components/Shell';
@@ -26,6 +28,8 @@ export function App() {
           <Route path="/pay" element={<Pay />} />
           <Route path="/pay/send" element={<Send />} />
           <Route path="/pay/receive" element={<Receive />} />
+          <Route path="/pay/gifts" element={<GiftCreate />} />
+          <Route path="/pay/gifts/my" element={<GiftList />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/rules" replace />} />
         </Routes>

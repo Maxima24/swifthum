@@ -100,6 +100,37 @@ export function openNativeQrScanner(onText: (text: string) => void, prompt = 'Sc
   }
 }
 
+/**
+ * Open Telegram's native share sheet for a URL (used by gift links). Inside
+ * Telegram we use `openTelegramLink` so it stays in-app; otherwise we fall back
+ * to opening the share URL in a new tab (desktop browser dev).
+ */
+export function shareTelegramLink(url: string, text = ''): void {
+  const share = `https://t.me/share/url?url=${encodeURIComponent(url)}${
+    text ? `&text=${encodeURIComponent(text)}` : ''
+  }`;
+  const wa = tgWebApp();
+  try {
+    if (wa && typeof wa.openTelegramLink === 'function') {
+      wa.openTelegramLink(share);
+      return;
+    }
+  } catch {
+    /* fall through to window.open */
+  }
+  if (typeof window !== 'undefined') window.open(share, '_blank');
+}
+
+/** Copy text to the clipboard, resolving to whether it succeeded. */
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function haptic(kind: 'light' | 'medium' | 'heavy' | 'success' | 'error' = 'light') {
   try {
     if (kind === 'success' || kind === 'error') {

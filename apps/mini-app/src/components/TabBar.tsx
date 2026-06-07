@@ -11,7 +11,7 @@ const TABS: { to: string; label: string; icon: IconName }[] = [
 
 const HIDE_ON: RegExp[] = [
   /^\/rules\/[^/]+/, // /rules/new, /rules/:id
-  /^\/pay\/(send|receive)/,
+  /^\/pay\/(send|receive|gifts)/,
 ];
 
 export function TabBar() {

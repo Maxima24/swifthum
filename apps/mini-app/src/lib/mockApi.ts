@@ -6,6 +6,7 @@ import {
 } from '../mocks/rules';
 import type {
   Execution,
+  GiftListItem,
   PaymentIntent,
   RedemptionResult,
   Rule,
@@ -26,6 +27,9 @@ const intents: Record<
   PaymentIntent & { senderName: string; consumed?: boolean; refunded?: boolean }
 > = {};
 let transactions: Transaction[] = [];
+
+// In-memory gifts (sender view)
+let gifts: GiftListItem[] = [];
 
 // In-memory SwiftyEx account state
 let swiftyexAccount: SwiftyexAccountStatus = { linked: false };
@@ -237,6 +241,52 @@ export async function mockApi<T>(path: string, init?: RequestInit): Promise<T> {
   // ─── Transactions ────────────────────────────────────────────
   if (path.startsWith('/transactions') && method === 'GET') {
     return { items: transactions, nextCursor: null } as T;
+  }
+
+  // ─── Gifts ───────────────────────────────────────────────────
+  if (path === '/gifts' && method === 'POST') {
+    const amountMinor = body.amountMinor as number;
+    if (amountMinor > wallet.balanceMinor) throw new Error('400 insufficient_balance');
+    const id = nextId('g');
+    const claimCode = Math.random().toString(36).slice(2, 14) + Math.random().toString(36).slice(2, 12);
+    const now = new Date();
+    const ttlExpiresAt = new Date(now.getTime() + 7 * 24 * 3600 * 1000).toISOString();
+    const item: GiftListItem = {
+      id,
+      amountMinor,
+      currency: 'NGN',
+      message: body.message || undefined,
+      state: 'UNCLAIMED',
+      claimCode,
+      deepLink: `https://t.me/swifthum_bot?start=gift_${claimCode}`,
+      ttlExpiresAt,
+      createdAt: now.toISOString(),
+    };
+    gifts = [item, ...gifts];
+    wallet = { ...wallet, balanceMinor: wallet.balanceMinor - amountMinor };
+    return {
+      giftId: id,
+      claimCode,
+      deepLink: item.deepLink,
+      amountMinor,
+      currency: 'NGN',
+      message: item.message,
+      state: 'UNCLAIMED',
+      ttlExpiresAt,
+      createdAt: item.createdAt,
+    } as T;
+  }
+  if (path === '/gifts' && method === 'GET') return { items: gifts } as T;
+  const giftCancelMatch = path.match(/^\/gifts\/([^/]+)\/cancel$/);
+  if (giftCancelMatch && method === 'POST') {
+    const g = gifts.find((x) => x.id === giftCancelMatch[1]);
+    if (!g) throw new Error('404 not_found');
+    if (g.state === 'CLAIMED') throw new Error('409 already_redeemed');
+    if (g.state === 'UNCLAIMED') {
+      g.state = 'RECLAIMED';
+      wallet = { ...wallet, balanceMinor: wallet.balanceMinor + g.amountMinor };
+    }
+    return { status: 'reclaimed' } as T;
   }
 
   // ─── SwiftyEx account / holdings ─────────────────────────────

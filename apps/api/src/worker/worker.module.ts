@@ -9,6 +9,7 @@ import { BotModule } from '../bot/bot.module';
 import { PricesModule } from '../prices/prices.module';
 import { RulesModule } from '../rules/rules.module';
 import { PaymentsModule } from '../payments/payments.module';
+import { GiftsModule } from '../gifts/gifts.module';
 import { WatcherProcessor } from './watcher.processor';
 
 @Module({
@@ -23,6 +24,7 @@ import { WatcherProcessor } from './watcher.processor';
     PricesModule,
     RulesModule,
     PaymentsModule,
+    GiftsModule,
   ],
   providers: [WatcherProcessor],
   exports: [WatcherProcessor],

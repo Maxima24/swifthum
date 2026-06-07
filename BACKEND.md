@@ -857,8 +857,10 @@ Use `vitest` or `jest` — whichever Nest's default is in this repo's version.
 - [ ] `POST /intents`
 - [ ] `POST /redeem`
 - [ ] `GET /transactions`
+- [x] `POST /gifts` · `POST /gifts/claim` · `GET /gifts` · `POST /gifts/:id/cancel`  (see §19)
 - [ ] Worker: rule evaluator (BullMQ, repeating)
 - [ ] Worker: expired-intent refunder
+- [x] Worker: expired-gift refunder (§19)
 - [ ] Bot push channel (Redis pub/sub `swifthum.notifications`)
 - [ ] SwiftyEx client interface + simulated adapter
 - [ ] Anthropic service with prompt caching + static fallback
@@ -872,3 +874,60 @@ Use `vitest` or `jest` — whichever Nest's default is in this repo's version.
 3. Telegram bot username — needed so the frontend deep-links can construct the right Mini App URL.
 4. Are we OK with a 30s intent TTL, or should that be configurable per-user / per-amount?
 5. Wallet seeding: ₦25,000 on signup for demo only? Or zero?
+
+---
+
+## 19. Gift Links (Hackfest §1)
+
+A sender locks NGN into a shareable Telegram deep-link; opening it on **any**
+account auto-provisions a wallet and credits the gift. All money moves through
+`LedgerService.transfer` (double-entry); funds sit in the `gift_unclaimed` system
+account until claimed or refunded. FSM (service-enforced): `UNCLAIMED → CLAIMED |
+EXPIRED | RECLAIMED`. TTL is server-owned (`GIFT_TTL_HOURS`, default 168h).
+
+All endpoints require `Authorization: Bearer <sessionToken>` (the bot uses its
+exchanged JWT for `/gifts/claim`).
+
+### `POST /gifts`  — create a gift
+Body: `{ amountMinor: number, message?: string (≤140), currency?: 'NGN' }`.
+Optional `Idempotency-Key` header dedupes retries (response cached in Redis; the
+ledger's unique `gift_create_<id>` key is the hard guard). Debits the sender
+(`wallet → gift_unclaimed`).
+Response:
+```json
+{ "giftId": "g_…", "claimCode": "…", "deepLink": "https://t.me/<bot>?start=gift_<claimCode>",
+  "amountMinor": 30000, "currency": "NGN", "message": "enjoy",
+  "state": "UNCLAIMED", "ttlExpiresAt": "ISO", "createdAt": "ISO" }
+```
+Errors: `insufficient_balance`.
+
+### `POST /gifts/claim`  — claim by code (called by the bot deep-link handler)
+Body: `{ claimCode: string }`. Single-use via a conditional `UPDATE … WHERE
+state='UNCLAIMED'` inside a serializable tx (two opens → one wins). Credits the
+recipient (`gift_unclaimed → wallet`), sets `CLAIMED`, tags new users
+`acquiredVia='gift'`, DMs both parties.
+Response: `{ "status": "ok", "amountMinor": 30000, "currency": "NGN", "sender": { "displayName": "Ada" } }`.
+Errors: `invalid_or_expired` (unknown code), `already_redeemed` (claimed), `expired`, `validation_error` (self-claim).
+
+### `GET /gifts`  — the caller's sent gifts
+Response: `{ "items": [{ "id", "amountMinor", "currency", "message?", "state",
+"claimCode", "deepLink", "ttlExpiresAt", "createdAt", "claimedAt?", "claimedBy?": { "displayName" } }] }`.
+
+### `POST /gifts/:id/cancel`  — reclaim an unclaimed gift
+Refunds the sender (`gift_unclaimed → wallet`), state `RECLAIMED`. Idempotent;
+shares the `gift_refund_<id>` ledger key with the expiry sweep so a gift can never
+be refunded twice. Response: `{ "status": "reclaimed" }`. Errors: `not_found`
+(non-owner), `already_redeemed` (claimed).
+
+### Worker: expired-gift refunder
+Mirrors the intent refunder — each watcher tick, unclaimed gifts past
+`ttlExpiresAt` are refunded to the sender (`gift_unclaimed → wallet`), state
+`EXPIRED`, and the sender is DMed (`gift_expired`).
+
+### Notifications (Redis `swifthum.notifications`)
+New event types: `gift_received` / `gift_claimed` (`{ amountMinor, counterpartyName }`)
+and `gift_expired` (`{ amountMinor }`).
+
+### Bot surfaces
+- `/start gift_<code>` → `POST /gifts/claim` (deep-link handler).
+- `/gift` → opens the Mini App's `/pay/gifts` create screen.
