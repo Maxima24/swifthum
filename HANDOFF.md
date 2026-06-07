@@ -44,6 +44,7 @@ curl -fsS https://swifthum-api.quickbiteltd.org/health   # → {"status":"ok"}
 - **Sign-in "no initData"** — `@telegram-apps/sdk` v3 needs `initData.restore()`; `getInitDataRaw()` now tries `window.Telegram.WebApp.initData` → `retrieveRawInitData()` → `initData.raw()`. Must open the app via the **bot menu button** (Telegram only injects initData then).
 - **Contract mismatches (mock vs real backend)** — fixed: suggestions wrap `{ id, reason, rule:{…} }`; `/intents` accepts `currency`. The API's `forbidNonWhitelisted` rejects any field not in the DTO — keep DTOs in sync with what the mini-app sends.
 - **Payment money model** — debit-on-generate (reserve); refunded by **cancel** (`POST /intents/:id/cancel`), **leave-screen auto-cancel**, or the **120s expiry sweep**. `redeem` rejects `refundedAt` intents (no double-spend). Sender polls `GET /intents/:id` for the "Paid ✓" state.
+- **Telegram push banners are client-side** — the bot sends **non-silent** messages (`notifications.py` `send_message` has no `disable_notification`), so Telegram pushes every DM. If no **phone** banner shows: the @swifthum_bot chat or Telegram's iOS notifications are muted, Do-Not-Disturb/Focus is on, or the app was **foregrounded** on that chat (Telegram suppresses the banner for the chat you're actively viewing — the DM still lands in-line). Not a code issue.
 - **Bot DMs require the recipient to have pressed `/start`** — Telegram bots **cannot initiate** a chat. A notification recipient who only ever used the **Mini App** (never `/start`ed @swifthum_bot) gets a `send_message` **403** and no DM, even though the API published fine. The *acting* party (tapped a bot button / opened a deep-link) has started it and is reachable. For demos, have every account press `/start` once. The mini-app escrow detail screen **polls** (`useEscrow`, 5s), so in-app state still updates without a DM. **Diagnose** with:
   ```bash
   docker logs --since 5m swifthum-api  | grep -i publishing     # did the API publish?
@@ -109,6 +110,17 @@ Full stack, all green (API tsc + `nest build` + 147 jest; mini-app tsc + vite bu
 
 ### All Builders-Track features shipped (Stages 1–4)
 Ledger → Gift Links → Receipts → Escrow. Remaining: polish + the 3-min demo script (HACKFEST_PLAN §7).
+
+## Extra feature — Pay by @username (direct wallet→wallet) DONE
+Full stack, all green (API tsc + `nest build` + 156 jest; mini-app tsc + vite build; bot 64 pytest). Spec in [BACKEND.md §22](BACKEND.md).
+- **Send NGN straight to another SwiftHum user by Telegram @handle** — no QR/gift/intent. `User.username` column (`@unique`, lowercased) + migration `20260607160000_user_username`; captured on Mini-App sign-in (`upsertByTelegram`) + forwarded by the bot on exchange (optional `username`, stored by a `UsernameCaptureMiddleware`). Re-used handles move to the current owner. No backfill (fills in lazily).
+- **API**: `GET /users/lookup?username=` (resolve handle → name) + `POST /transfers` (`PaymentsService.sendToUser`: one `wallet→wallet` ledger transfer, kind `transfer`, reuses Transaction projection + receipt + `payment_sent`/`payment_received` DMs). Rejects unknown handle / self-send / insufficient funds; Idempotency-Key aware.
+- **Mini-app**: `/pay/send-to-user` (type @handle → live debounced lookup → amount → send; unknown handle → "send a gift instead" CTA). Entry on Pay.
+- **Bot**: `/pay @username 5000` (or `5k`) → Confirm/Cancel inline → transfer (or gift-link offer if not found).
+- No new env. Migration auto-runs on `up`.
+
+## Ops fix — bot notifications now reliable (root-caused)
+The bot delivered **no** DMs because its `redis.asyncio` pub/sub had a ~5s socket read-timeout, so the blocking `pubsub.listen()` raised `Timeout reading from redis` every idle window → reconnect storm → lost messages. Fixed: `notifications.run` now polls with `pubsub.get_message(timeout=1.0)` (returns None on idle) inside a supervised reconnect loop; `main.py` logs if the listener task dies. Also: API publish logging (`publishing <type> → telegramId=…`), and the "Telegram **push banner** is client-side (unmute chat / background app / Do-Not-Disturb)" gotcha — see the Gotchas section.
 
 ## Earlier roadmap (bot hub — partially superseded by hackfest work)
 - **Phase 1: interactive bot hub** — `/menu` inline hub + quick commands, SwiftyEx read features.

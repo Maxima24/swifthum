@@ -36,7 +36,15 @@ class ApiClient:
         self._secret = internal_secret
         self._sessions: dict[int, _CachedSession] = {}
         self._locks: dict[int, asyncio.Lock] = {}
+        self._usernames: dict[int, str] = {}
         self._http: aiohttp.ClientSession | None = None
+
+    def note_username(self, telegram_id: int, username: str | None) -> None:
+        """Remember a user's @handle (from any bot update) so the next session
+        exchange forwards it to the API — lets others pay this user by username
+        even if they never opened the Mini App. In-memory only, no network."""
+        if username:
+            self._usernames[telegram_id] = username
 
     async def __aenter__(self) -> "ApiClient":
         self._http = aiohttp.ClientSession()
@@ -60,9 +68,13 @@ class ApiClient:
             cached = self._sessions.get(telegram_id)
             if cached and cached.expires_at > time.time() and not force_refresh:
                 return cached.token
+            body: dict[str, Any] = {"telegramId": telegram_id}
+            username = self._usernames.get(telegram_id)
+            if username:
+                body["username"] = username
             resp = await self._raw(
                 "POST", "/auth/bot/exchange",
-                json_body={"telegramId": telegram_id},
+                json_body=body,
                 headers={"X-Internal-Secret": self._secret},
             )
             token = resp["sessionToken"]

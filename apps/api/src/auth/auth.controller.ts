@@ -32,6 +32,6 @@ export class AuthController {
   @Post('bot/exchange')
   @HttpCode(HttpStatus.OK)
   async botExchange(@Body() body: BotExchangeDto) {
-    return this.auth.exchangeForBot(body.telegramId);
+    return this.auth.exchangeForBot(body.telegramId, body.username);
   }
 }

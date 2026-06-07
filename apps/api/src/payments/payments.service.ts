@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from '../ledger/ledger.service';
 import { ReceiptsService } from '../receipts/receipts.service';
+import { UsersService } from '../users/users.service';
 import { Errors } from '../common/errors';
 import { prefixedId } from '../common/ids';
 import { BotPushService } from '../bot/bot-push.service';
@@ -23,6 +24,7 @@ export class PaymentsService {
     private readonly prisma: PrismaService,
     private readonly ledger: LedgerService,
     private readonly receipts: ReceiptsService,
+    private readonly users: UsersService,
     private readonly botPush: BotPushService,
     private readonly ai: AnthropicService,
     config: ConfigService,
@@ -244,6 +246,86 @@ export class PaymentsService {
   }
 
   /**
+   * Direct wallet → wallet send to a SwiftHum user identified by @username. No
+   * intent/hold/token — both parties are known, so it's a single atomic
+   * transfer. Mirrors redeem's bookkeeping (Transaction projection + receipt +
+   * DMs). Rejects unknown handle / self-send / insufficient funds.
+   */
+  async sendToUser(senderId: string, recipientUsername: string, amountMinor: number) {
+    const amount = BigInt(amountMinor);
+    const recipient = await this.users.findByUsername(recipientUsername);
+    if (!recipient) throw Errors.notFound('user not found');
+    if (recipient.id === senderId) throw Errors.validation('cannot send to yourself');
+    const transferId = prefixedId('tx');
+
+    const sender = await this.prisma.$transaction(
+      async (tx) => {
+        const senderRow = await tx.user.findUnique({ where: { id: senderId } });
+        if (!senderRow) throw Errors.notFound('sender not found');
+
+        await this.ledger.transfer(tx, {
+          from: { wallet: senderId },
+          to: { wallet: recipient.id },
+          amountMinor: amount,
+          kind: 'transfer',
+          idempotencyKey: `transfer_${transferId}`,
+          metadata: { transferId, recipientId: recipient.id },
+        });
+
+        await tx.transaction.createMany({
+          data: [
+            {
+              id: prefixedId('tx'),
+              userId: senderRow.id,
+              direction: 'sent',
+              amountMinor: amount,
+              currency: 'NGN',
+              counterpartyName: recipient.displayName,
+            },
+            {
+              id: prefixedId('tx'),
+              userId: recipient.id,
+              direction: 'received',
+              amountMinor: amount,
+              currency: 'NGN',
+              counterpartyName: senderRow.displayName,
+            },
+          ],
+        });
+
+        await this.receipts.emit(tx, {
+          sourceType: 'payment',
+          sourceId: transferId,
+          fromUserId: senderRow.id,
+          toUserId: recipient.id,
+          fromName: senderRow.displayName,
+          toName: recipient.displayName,
+          amountMinor: amount,
+        });
+
+        return senderRow;
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+
+    void this.publishTransferNotifications(
+      sender.id,
+      recipient.id,
+      Number(amount),
+      sender.displayName,
+      recipient.displayName,
+    );
+
+    return {
+      status: 'ok' as const,
+      transferId,
+      amountMinor: Number(amount),
+      currency: 'NGN' as const,
+      recipient: { displayName: recipient.displayName },
+    };
+  }
+
+  /**
    * Sender cancels an unredeemed intent and gets the reserved funds back
    * immediately (instead of waiting for the expiry sweep). Idempotent: a
    * already-refunded intent returns ok; a consumed (completed) one throws.
@@ -376,6 +458,40 @@ export class PaymentsService {
   }
 
   // ─── helpers ────────────────────────────────────────────────────
+
+  /** Fire-and-forget DMs for a direct username transfer (after commit). */
+  private async publishTransferNotifications(
+    senderId: string,
+    recipientId: string,
+    amountMinor: number,
+    senderName: string,
+    recipientName: string,
+  ) {
+    try {
+      const [sender, recipient] = await Promise.all([
+        this.prisma.user.findUnique({ where: { id: senderId } }),
+        this.prisma.user.findUnique({ where: { id: recipientId } }),
+      ]);
+      if (recipient && recipient.notificationsEnabled) {
+        this.logger.log(`publishing payment_received → telegramId=${recipient.telegramId}`);
+        await this.botPush.publish({
+          telegramId: Number(recipient.telegramId),
+          type: 'payment_received',
+          data: { amountMinor, counterpartyName: senderName },
+        });
+      }
+      if (sender && sender.notificationsEnabled) {
+        this.logger.log(`publishing payment_sent → telegramId=${sender.telegramId}`);
+        await this.botPush.publish({
+          telegramId: Number(sender.telegramId),
+          type: 'payment_sent',
+          data: { amountMinor, counterpartyName: recipientName },
+        });
+      }
+    } catch (err) {
+      this.logger.warn(`publish transfer notifications failed: ${(err as Error).message}`);
+    }
+  }
 
   private async publishRedeemNotifications(
     result: {

@@ -45,9 +45,9 @@ export class AuthService {
    * wallet on first sight) and return a normal session JWT. The bot caches
    * this and calls every other endpoint as a standard Bearer-token client.
    */
-  async exchangeForBot(telegramId: number) {
+  async exchangeForBot(telegramId: number, username?: string) {
     const seed = BigInt(this.config.get<string>('WALLET_SEED_NGN_MINOR', '2500000'));
-    const user = await this.users.ensureByTelegramId(telegramId, seed);
+    const user = await this.users.ensureByTelegramId(telegramId, seed, username);
     const sessionToken = await this.jwt.signAsync({
       sub: user.id,
       telegramId: Number(user.telegramId),

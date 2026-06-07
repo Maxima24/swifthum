@@ -4,6 +4,8 @@ import type {
   IntentStatus,
   PaymentIntent,
   RedemptionResult,
+  SendToUserResult,
+  UserLookupResult,
   UserPreferences,
   Wallet,
 } from '../types';
@@ -61,6 +63,38 @@ export function useIntentStatus(intentId: string | undefined, enabled: boolean) 
     enabled: enabled && !!intentId,
     refetchInterval: (query) =>
       query.state.data && query.state.data.status !== 'pending' ? false : 2500,
+  });
+}
+
+/** Resolve a typed @handle to a SwiftHum user (debounced by the caller). */
+export function useLookupUser(username: string) {
+  const handle = username.trim().replace(/^@+/, '');
+  return useQuery({
+    queryKey: ['user-lookup', handle.toLowerCase()],
+    queryFn: () => api<UserLookupResult>(`/users/lookup?username=${encodeURIComponent(handle)}`),
+    enabled: handle.length >= 3,
+    staleTime: 10_000,
+  });
+}
+
+export interface SendToUserInput {
+  recipientUsername: string;
+  amountMinor: number;
+}
+
+/** Direct wallet → wallet send to a @username. */
+export function useSendToUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: SendToUserInput) =>
+      api<SendToUserResult>('/transfers', {
+        method: 'POST',
+        body: JSON.stringify({ currency: 'NGN', ...data }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['wallet'] });
+      qc.invalidateQueries({ queryKey: ['transactions'] });
+    },
   });
 }
 

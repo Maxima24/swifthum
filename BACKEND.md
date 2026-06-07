@@ -859,6 +859,7 @@ Use `vitest` or `jest` — whichever Nest's default is in this repo's version.
 - [ ] `GET /transactions`
 - [x] `POST /gifts` · `POST /gifts/claim` · `GET /gifts` · `POST /gifts/:id/cancel`  (see §19)
 - [x] `GET /receipts` · `GET /receipts/verify?token=` (public)  (see §20)
+- [x] `GET /users/lookup?username=` · `POST /transfers` (pay by @username)  (see §22)
 - [x] `POST /escrows` · `/escrow/join` · `/escrows/:id/{accept,decline,cancel,mark-paid,release,dispute}` · `GET /escrows[/:id]` · admin `POST /admin/escrows/:id/resolve`  (see §21)
 - [ ] Worker: rule evaluator (BullMQ, repeating)
 - [ ] Worker: expired-intent refunder
@@ -1026,3 +1027,37 @@ createdAt, deepLink? }` (deepLink only for the creator while PROPOSED).
   buttons come from these direct interactions).
 - Mini-App: `/pay/escrow` (list), `/pay/escrow/new` (create + share invite),
   `/pay/escrow/:id` (detail, server-driven countdown, actions, event timeline).
+
+---
+
+## 22. Pay by @username (direct wallet → wallet)
+
+Send NGN straight to another SwiftHum user by their Telegram @handle — no QR,
+gift link, or intent/redeem dance (both parties are known). For non-users, the UI
+falls back to a gift link (which onboards them).
+
+**Username capture:** `User.username` (lowercased Telegram @handle, `@unique`,
+nullable). Captured from `initData.user.username` on Mini-App sign-in
+(`upsertByTelegram`) and forwarded by the bot on `/auth/bot/exchange` (optional
+`username` field; the bot stores each update's handle in memory). Re-used handles
+move to their current owner (Telegram handles are globally unique). No backfill —
+fills in as users sign in / use the bot.
+
+### `GET /users/lookup?username=<handle>`  (authed)
+Strips a leading `@`, lowercases, validates. → `{ found: boolean, displayName?, username? }`.
+No internal id is returned (the send resolves the handle server-side).
+
+### `POST /transfers`  (authed, `Idempotency-Key`-aware)
+Body `{ recipientUsername, amountMinor, currency? }`. One serializable tx mirroring
+`redeem` but `ledger.transfer({ from:{wallet:sender}, to:{wallet:recipient},
+kind:'transfer', idempotencyKey:'transfer_<id>' })`: writes the two `Transaction`
+projection rows (sent/received), emits a receipt (`sourceType:'payment'`), and DMs
+both (`payment_sent`/`payment_received`). Rejects unknown handle (`not_found`),
+self-send (`validation_error`), insufficient funds (`insufficient_balance`).
+Returns `{ status:'ok', transferId, amountMinor, currency, recipient:{ displayName } }`.
+
+### Surfaces
+- Mini-App: `/pay/send-to-user` (type @handle → live lookup → amount → send; unknown
+  handle → "send a gift instead" CTA).
+- Bot: `/pay @username 5000` (or `5k`) → Confirm/Cancel inline → transfer (or the
+  gift-link offer if not found).
