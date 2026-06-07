@@ -531,7 +531,15 @@ export class EscrowService {
         this.prisma.user.findUnique({ where: { id: userId } }),
         actorId ? this.prisma.user.findUnique({ where: { id: actorId } }) : Promise.resolve(null),
       ]);
-      if (!target || !target.notificationsEnabled) return;
+      if (!target) {
+        this.logger.warn(`skipping ${type}: user ${userId} not found`);
+        return;
+      }
+      if (!target.notificationsEnabled) {
+        this.logger.log(`skipping ${type}: notifications disabled for ${userId}`);
+        return;
+      }
+      this.logger.log(`publishing ${type} → telegramId=${target.telegramId}`);
       await this.botPush.publish({
         telegramId: Number(target.telegramId),
         type,

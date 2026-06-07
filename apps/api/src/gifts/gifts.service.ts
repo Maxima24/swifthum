@@ -283,6 +283,7 @@ export class GiftsService {
         if (sender) {
           expired++;
           if (sender.notificationsEnabled) {
+            this.logger.log(`publishing gift_expired → telegramId=${sender.telegramId}`);
             void this.botPush.publish({
               telegramId: Number(sender.telegramId),
               type: 'gift_expired',
@@ -332,18 +333,24 @@ export class GiftsService {
       ]);
       const amountMinor = Number(result.gift.amountMinor);
       if (receiver && receiver.notificationsEnabled) {
+        this.logger.log(`publishing gift_received → telegramId=${receiver.telegramId}`);
         await this.botPush.publish({
           telegramId: Number(receiver.telegramId),
           type: 'gift_received',
           data: { amountMinor, counterpartyName: result.senderName },
         });
+      } else {
+        this.logger.warn(`skipping gift_received: receiver ${receiverId} missing or notifications off`);
       }
       if (sender && sender.notificationsEnabled) {
+        this.logger.log(`publishing gift_claimed → telegramId=${sender.telegramId}`);
         await this.botPush.publish({
           telegramId: Number(sender.telegramId),
           type: 'gift_claimed',
           data: { amountMinor, counterpartyName: result.receiverName },
         });
+      } else {
+        this.logger.warn(`skipping gift_claimed: sender ${result.gift.senderId} missing or notifications off`);
       }
     } catch (err) {
       this.logger.warn(`publish claim notifications failed: ${(err as Error).message}`);
