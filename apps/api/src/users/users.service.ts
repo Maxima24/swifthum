@@ -1,11 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { LedgerService } from '../ledger/ledger.service';
 import { prefixedId } from '../common/ids';
 import type { TelegramUser } from '../auth/init-data';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly ledger: LedgerService,
+  ) {}
 
   /**
    * Idempotent upsert by Telegram ID. On first sign-in also seeds a wallet
@@ -32,15 +36,7 @@ export class UsersService {
     }
 
     const id = prefixedId('u');
-    const user = await this.prisma.user.create({
-      data: {
-        id,
-        telegramId,
-        displayName,
-        wallet: { create: { balanceMinor: walletSeedMinor, currency: 'NGN' } },
-      },
-    });
-    return user;
+    return this.createUserWithSeed(id, telegramId, displayName, walletSeedMinor);
   }
 
   async findById(id: string) {
@@ -85,13 +81,41 @@ export class UsersService {
     const existing = await this.prisma.user.findUnique({ where: { telegramId: tgIdBig } });
     if (existing) return existing;
     const id = prefixedId('u');
-    return this.prisma.user.create({
-      data: {
-        id,
-        telegramId: tgIdBig,
-        displayName: `tg_${telegramId}`,
-        wallet: { create: { balanceMinor: walletSeedMinor, currency: 'NGN' } },
-      },
+    return this.createUserWithSeed(id, tgIdBig, `tg_${telegramId}`, walletSeedMinor);
+  }
+
+  /**
+   * Create a user + their (zero-balance) wallet, then seed via the ledger so the
+   * money has a `treasury → wallet` provenance entry (§4: all money via the
+   * ledger, no ad-hoc wallet writes). The Wallet row is mirrored in lockstep by
+   * LedgerService. A zero seed (e.g. gift-claim auto-provisioning) skips the
+   * transfer — the wallet account is created lazily when funds first arrive.
+   */
+  private async createUserWithSeed(
+    id: string,
+    telegramId: bigint,
+    displayName: string,
+    walletSeedMinor: bigint,
+  ): Promise<{ id: string; telegramId: bigint; displayName: string }> {
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          id,
+          telegramId,
+          displayName,
+          wallet: { create: { balanceMinor: 0n, currency: 'NGN' } },
+        },
+      });
+      if (walletSeedMinor > 0n) {
+        await this.ledger.transfer(tx, {
+          from: { system: 'treasury' },
+          to: { wallet: id },
+          amountMinor: walletSeedMinor,
+          kind: 'seed',
+          idempotencyKey: `seed_${id}`,
+        });
+      }
+      return user;
     });
   }
 

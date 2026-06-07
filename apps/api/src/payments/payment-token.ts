@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { b64urlDecode, b64urlEncode, hmacSign, hmacVerify } from '../common/hmac';
 
 /**
  * Payment token format:
@@ -22,20 +23,10 @@ export interface TokenPayload {
   e: number; // expiresAt epoch seconds
 }
 
-const b64urlEncode = (buf: Buffer) =>
-  buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-
-const b64urlDecode = (s: string) => {
-  const padded = s.replace(/-/g, '+').replace(/_/g, '/');
-  const pad = padded.length % 4 === 0 ? '' : '='.repeat(4 - (padded.length % 4));
-  return Buffer.from(padded + pad, 'base64');
-};
-
 export function signToken(payload: TokenPayload, secret: string): string {
   const bodyJson = JSON.stringify(payload);
   const bodyB64 = b64urlEncode(Buffer.from(bodyJson, 'utf8'));
-  const sig = crypto.createHmac('sha256', secret).update(bodyB64).digest();
-  const sigB64 = b64urlEncode(sig);
+  const sigB64 = hmacSign(bodyB64, secret);
   return `${TOKEN_PREFIX}.${bodyB64}.${sigB64}`;
 }
 
@@ -55,15 +46,7 @@ export function verifyToken(token: string, secret: string): VerifyOk | VerifyErr
   if (parts.length !== 3 || parts[0] !== TOKEN_PREFIX) return { ok: false, reason: 'malformed' };
 
   const [, bodyB64, sigB64] = parts;
-  const expected = crypto.createHmac('sha256', secret).update(bodyB64).digest();
-  let actual: Buffer;
-  try {
-    actual = b64urlDecode(sigB64);
-  } catch {
-    return { ok: false, reason: 'malformed' };
-  }
-  if (expected.length !== actual.length) return { ok: false, reason: 'bad_signature' };
-  if (!crypto.timingSafeEqual(expected, actual)) return { ok: false, reason: 'bad_signature' };
+  if (!hmacVerify(bodyB64, sigB64, secret)) return { ok: false, reason: 'bad_signature' };
 
   let payload: TokenPayload;
   try {

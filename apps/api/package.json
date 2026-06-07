@@ -24,7 +24,8 @@
     "test:cov": "jest --coverage",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "backfill:ledger": "ts-node -r tsconfig-paths/register prisma/backfill-ledger.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.40.0",

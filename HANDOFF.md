@@ -51,7 +51,27 @@ curl -fsS https://swifthum-api.quickbiteltd.org/health   # → {"status":"ok"}
 - `miniapp (unhealthy)` in `docker compose ps` is **cosmetic** (BusyBox `wget --spider` quirk); it serves fine.
 - SwiftyEx **live** trading is stubbed (awaiting hackathon API keys); `SWIFTYEX_MODE=sandbox`.
 
-## Roadmap (current focus)
-- **Phase 1 (in progress): interactive bot hub** — `/menu` inline hub + quick commands (`/prices`, `/portfolio`, `/history`), SwiftyEx read features (holdings, prices, history, account link/unlink), BotFather command menu.
-- **Phase 2 (next): conversational wizards** — aiogram FSM for guided rule creation and guided send, without opening the Mini App.
-- **Phase 3 (later): deeper SwiftyEx** — in-chat trading once live keys land.
+## Hackfest build — Stage 1 (Foundations §0) DONE
+See [docs/HACKFEST_PLAN.md](docs/HACKFEST_PLAN.md). Stage 1 shipped the shared foundations the three features (Gift / Receipts / Escrow) sit on. All API tsc + 110 jest tests green; bot tests green.
+- **Double-entry ledger** — `apps/api/src/ledger/` (`LedgerService.transfer` is now the *only* money primitive; locks accounts, asserts balance, writes a balanced `LedgerTransaction` + 2 `LedgerEntry` rows, mirrors `Wallet.balanceMinor`). New Prisma models `LedgerAccount/LedgerTransaction/LedgerEntry` + migration `20260607120000_double_entry_ledger`.
+- **Existing flows migrated onto the ledger** — seed (`treasury→wallet`), reserve (`wallet→payment_hold`), redeem (`payment_hold→receiver`), cancel/expiry refund (`payment_hold→sender`). No behaviour change for users; `Transaction` projection + `/transactions` + `/history` unchanged.
+- **Signer extracted** — `common/hmac.ts` (shared HMAC/base64url, payment-token.ts reuses it) + `common/signed-token.ts` (URL token sign/verify for receipts). New env `SIGNED_TOKEN_SECRET`.
+- **Idempotency** — `IdempotencyService` (Redis response cache; money guaranteed at-most-once by unique `LedgerTransaction.idempotencyKey`). **FSM helper** — `common/fsm.ts`. **ids** — added `g_`/`esc_`/`rcpt_` prefixes + `generateClaimCode()`.
+- **Bot deep-link** — `start.py` now handles `CommandStart(deep_link=True)`; `gift_<code>` → POST `/gifts/claim` (graceful "coming soon" until §1 adds the endpoint).
+
+### ⚠️ DEPLOY ORDER (critical) — run the backfill before serving traffic
+The new payment code reads balances from the **wallet LedgerAccount**, which is empty for pre-existing users until backfilled. Sequence on the VPS:
+```bash
+$C up -d --build migrate        # applies the ledger migration
+$C run --rm api pnpm backfill:ledger   # one-off: mirrors Wallet balances + pending holds into the ledger (idempotent, re-runnable)
+$C up -d --build api worker bot # then roll the new code
+```
+Skipping the backfill → existing users see `insufficient_balance` on send (ledger balance reads 0). Verify: each user's `Wallet.balanceMinor == wallet LedgerAccount balance` (the script prints mismatches and exits non-zero if any).
+
+### Next: Stage 2 — Gift Links (§1)
+`Gift` model + FSM, `POST /gifts` (`wallet→gift_unclaimed`) returning `t.me/<bot>?start=gift_<claimCode>`, `POST /gifts/claim` (auto-provision recipient, `gift_unclaimed→wallet`), expiry sweep (mirror `refundExpiredIntents`), Mini-App create + "my gifts". The bot claim path is already wired.
+
+## Earlier roadmap (bot hub — partially superseded by hackfest work)
+- **Phase 1: interactive bot hub** — `/menu` inline hub + quick commands, SwiftyEx read features.
+- **Phase 2: conversational wizards** — aiogram FSM for guided rule creation/send.
+- **Phase 3: deeper SwiftyEx** — in-chat trading once live keys land.

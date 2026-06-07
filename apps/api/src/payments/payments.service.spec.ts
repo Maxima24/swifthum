@@ -1,6 +1,8 @@
 import type { ConfigService } from '@nestjs/config';
 import { PaymentsService } from './payments.service';
 import { hashToken, signToken } from './payment-token';
+import { Errors } from '../common/errors';
+import type { AccountRef, LedgerService, TransferArgs } from '../ledger/ledger.service';
 
 const SECRET = 'test-payment-token-secret';
 
@@ -92,7 +94,28 @@ function makeService(seed: {
   const botPush = { publish: jest.fn(async () => undefined) } as any;
   const ai = { scoreFraud: jest.fn(async () => ({ score: 0.1, reasoning: '' })) } as any;
 
-  const svc = new PaymentsService(db, botPush, ai, config);
+  // Fake ledger: applies wallet-side deltas to the same `wallets` map the
+  // assertions read, and enforces insufficient-balance for a wallet `from`
+  // (system accounts like payment_hold are unbounded sources here).
+  const walletDelta = (ref: AccountRef, delta: bigint) => {
+    if ('wallet' in ref) {
+      const w = wallets.get(ref.wallet);
+      if (w) w.balanceMinor += delta;
+    }
+  };
+  const ledger = {
+    transfer: jest.fn(async (_tx: unknown, args: TransferArgs) => {
+      if ('wallet' in args.from) {
+        const w = wallets.get(args.from.wallet);
+        if (w && w.balanceMinor < args.amountMinor) throw Errors.insufficientBalance();
+      }
+      walletDelta(args.from, -args.amountMinor);
+      walletDelta(args.to, args.amountMinor);
+      return { transactionId: 'lt_test', idempotent: false };
+    }),
+  } as unknown as LedgerService;
+
+  const svc = new PaymentsService(db, ledger, botPush, ai, config);
   return { svc, intents, wallets, transactions };
 }
 
