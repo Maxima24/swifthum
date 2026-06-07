@@ -115,7 +115,9 @@ function makeService(seed: {
     }),
   } as unknown as LedgerService;
 
-  const svc = new PaymentsService(db, ledger, botPush, ai, config);
+  const receipts = { emit: jest.fn(async () => ({ id: 'rcpt_test' })) } as any;
+
+  const svc = new PaymentsService(db, ledger, receipts, botPush, ai, config);
   return { svc, intents, wallets, transactions };
 }
 

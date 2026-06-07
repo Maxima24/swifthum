@@ -72,6 +72,17 @@ export function Pay() {
               navigate('/pay/gifts/my');
             }}
           />
+          <ListRow
+            icon="check-circle"
+            iconTone="muted"
+            label="Receipts"
+            subtitle="Signed, verifiable proof of every transfer — shareable."
+            chevron
+            onClick={() => {
+              haptic('light');
+              navigate('/pay/receipts');
+            }}
+          />
         </ListGroup>
 
         <ListGroup title="How it works">

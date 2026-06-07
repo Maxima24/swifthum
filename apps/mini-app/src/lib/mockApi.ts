@@ -8,6 +8,7 @@ import type {
   Execution,
   GiftListItem,
   PaymentIntent,
+  ReceiptListItem,
   RedemptionResult,
   Rule,
   RuleState,
@@ -30,6 +31,12 @@ let transactions: Transaction[] = [];
 
 // In-memory gifts (sender view)
 let gifts: GiftListItem[] = [];
+
+// In-memory receipts
+let receipts: ReceiptListItem[] = [];
+function pushReceipt(r: ReceiptListItem) {
+  receipts = [r, ...receipts];
+}
 
 // In-memory SwiftyEx account state
 let swiftyexAccount: SwiftyexAccountStatus = { linked: false };
@@ -228,6 +235,23 @@ export async function mockApi<T>(path: string, init?: RequestInit): Promise<T> {
     ];
     wallet = { ...wallet, balanceMinor: wallet.balanceMinor + intent.amountMinor };
 
+    // Emit a verifiable receipt (received) for the mock dashboard.
+    const rid = nextId('rcpt');
+    const rtoken = `${btoa(JSON.stringify({ receiptId: rid })).replace(/=+$/, '')}.${Math.random()
+      .toString(36)
+      .slice(2, 10)}`;
+    pushReceipt({
+      id: rid,
+      sourceType: 'payment',
+      direction: 'received',
+      amountMinor: intent.amountMinor,
+      currency: 'NGN',
+      counterparty: { displayName: intent.senderName },
+      url: `${window.location.origin}/r/${rid}?token=${rtoken}`,
+      token: rtoken,
+      createdAt: new Date().toISOString(),
+    });
+
     const result: RedemptionResult = {
       status: 'ok',
       intentId: intent.intentId,
@@ -287,6 +311,26 @@ export async function mockApi<T>(path: string, init?: RequestInit): Promise<T> {
       wallet = { ...wallet, balanceMinor: wallet.balanceMinor + g.amountMinor };
     }
     return { status: 'reclaimed' } as T;
+  }
+
+  // ─── Receipts ────────────────────────────────────────────────
+  if (path === '/receipts' && method === 'GET') return { items: receipts } as T;
+  if (path.startsWith('/receipts/verify') && method === 'GET') {
+    const token = new URLSearchParams(path.split('?')[1] ?? '').get('token') ?? '';
+    const r = receipts.find((x) => x.token === token);
+    if (!r) return { valid: false } as T;
+    return {
+      valid: true,
+      receipt: {
+        id: r.id,
+        sourceType: r.sourceType,
+        amountMinor: r.amountMinor,
+        asset: r.currency,
+        from: r.direction === 'received' ? r.counterparty.displayName : 'You',
+        to: r.direction === 'received' ? 'You' : r.counterparty.displayName,
+        createdAt: r.createdAt,
+      },
+    } as T;
   }
 
   // ─── SwiftyEx account / holdings ─────────────────────────────

@@ -28,6 +28,7 @@ from src.handlers import menu as menu_handler
 from src.handlers import parse as parse_handler
 from src.handlers import rules as rules_handler
 from src.handlers import start as start_handler
+from src.handlers import verify as verify_handler
 from src.handlers import voice as voice_handler
 from src.handlers import wallet as wallet_handler
 from src.services import notifications
@@ -38,6 +39,7 @@ BOT_COMMANDS = [
     BotCommand(command="balance", description="Your NGN wallet balance"),
     BotCommand(command="rules", description="Your auto-trading rules"),
     BotCommand(command="gift", description="Send an NGN gift link"),
+    BotCommand(command="verify", description="Verify a SwiftHum receipt"),
     BotCommand(command="portfolio", description="Your SwiftyEx holdings"),
     BotCommand(command="prices", description="Live USDT/BTC/ETH prices"),
     BotCommand(command="history", description="Recent payments"),
@@ -67,6 +69,7 @@ async def amain() -> None:
         dp.include_router(wallet_handler.build_router(api))
         dp.include_router(rules_handler.build_router(api))
         dp.include_router(gift_handler.build_router(api, settings))
+        dp.include_router(verify_handler.build_router(api))
         # Voice notes (F.voice) → transcribe → same parse/confirm flow as text.
         # Registered before the catch-all text parser.
         dp.include_router(voice_handler.build_router(api, settings))

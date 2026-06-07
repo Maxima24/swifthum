@@ -107,6 +107,25 @@ def format_notification(payload: dict[str, Any]) -> str | None:
 
 # ─── command responses ─────────────────────────────────────────────
 
+def format_receipt_verification(result: dict[str, Any]) -> str:
+    """Render the result of GET /receipts/verify for the /verify command."""
+    if not result.get("valid"):
+        return (
+            "❌ <b>Could not verify</b>\n"
+            "This receipt is invalid, expired, or has been tampered with."
+        )
+    r = result.get("receipt") or {}
+    amount = kobo_to_naira_str(int(r.get("amountMinor", 0)))
+    frm = escape(str(r.get("from", "?")))
+    to = escape(str(r.get("to", "?")))
+    source = escape(str(r.get("sourceType", "transfer")))
+    return (
+        "✅ <b>Verified by SwiftyEx</b>\n"
+        f"<b>{amount}</b> · {source}\n"
+        f"From <b>{frm}</b> → <b>{to}</b>"
+    )
+
+
 def format_balance(wallet: dict[str, Any]) -> str:
     amount = kobo_to_naira_str(int(wallet.get("balanceMinor", 0)))
     return f"\U0001f4b0 Wallet balance: <b>{amount}</b>"

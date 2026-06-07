@@ -230,3 +230,27 @@ model Gift {
   @@index([senderId, createdAt])
   @@index([state, ttlExpiresAt]) // drives the worker expiry sweep
 }
+
+// ─── Verifiable Receipts (§2) ────────────────────────────────────────────────
+// Emitted on every completed money movement. `token` is a signed (HMAC) URL
+// token (common/signed-token.ts) that anyone can re-verify server-side. Names
+// are masked snapshots — no internal ids leak into the shareable artifact. No
+// User FK so a receipt stands alone as permanent proof.
+
+model Receipt {
+  id          String   @id
+  sourceType  String   // payment | gift | escrow
+  sourceId    String
+  fromUserId  String
+  toUserId    String
+  fromName    String   // masked display-name snapshot at emit time
+  toName      String
+  asset       String   @default("NGN")
+  amountMinor BigInt
+  token       String   // signed shareable token (embeds nonce/iat/exp)
+  createdAt   DateTime @default(now())
+
+  @@index([sourceType, sourceId])
+  @@index([toUserId, createdAt])
+  @@index([fromUserId, createdAt])
+}

@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from '../ledger/ledger.service';
+import { ReceiptsService } from '../receipts/receipts.service';
 import { BotPushService } from '../bot/bot-push.service';
 import { Errors } from '../common/errors';
 import { assertTransition, type TransitionMap } from '../common/fsm';
@@ -39,6 +40,7 @@ export class GiftsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ledger: LedgerService,
+    private readonly receipts: ReceiptsService,
     private readonly botPush: BotPushService,
     config: ConfigService,
   ) {
@@ -147,6 +149,17 @@ export class GiftsService {
             data: { acquiredVia: 'gift' },
           });
         }
+
+        // Emit a verifiable receipt for the claimed gift.
+        await this.receipts.emit(tx, {
+          sourceType: 'gift',
+          sourceId: gift.id,
+          fromUserId: gift.senderId,
+          toUserId: receiverId,
+          fromName: sender.displayName,
+          toName: receiver.displayName,
+          amountMinor: gift.amountMinor,
+        });
 
         return {
           gift: { id: gift.id, amountMinor: gift.amountMinor, senderId: gift.senderId },

@@ -3,6 +3,9 @@
   // rootDir pins the emit root to src/ so the entry is always dist/main.js,
   // regardless of stray .ts files elsewhere (e.g. prisma/backfill-ledger.ts).
   // prisma/ is excluded from the build — that script runs standalone via ts-node.
-  "compilerOptions": { "rootDir": "./src" },
+  // tsBuildInfoFile lives inside dist so `rm -rf dist` clears the incremental
+  // cache — otherwise a stale root-level *.tsbuildinfo makes tsc skip emit and
+  // `nest build` silently produces no dist/main.js.
+  "compilerOptions": { "rootDir": "./src", "tsBuildInfoFile": "./dist/tsconfig.build.tsbuildinfo" },
   "exclude": ["node_modules", "test", "dist", "prisma", "**/*spec.ts"]
 }
