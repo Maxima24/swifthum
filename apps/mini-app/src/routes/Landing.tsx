@@ -52,6 +52,8 @@ export function Landing() {
     let cleanupPointer: (() => void) | undefined;
 
     const ctx = gsap.context(() => {
+      if (reduce) return; // reduced-motion: leave everything rendered + visible
+
       // ── Entrance ──
       const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
       tl.from('.hero-eyebrow', { y: 16, opacity: 0, duration: 0.6 })
@@ -62,13 +64,11 @@ export function Landing() {
         .from('.mascot', { opacity: 0, scale: 0.82, duration: 0.9 }, '-=0.9')
         .from('.glass-card', { opacity: 0, scale: 0.8, y: 24, duration: 0.7, stagger: 0.1 }, '-=0.6');
 
-      if (reduce) return;
-
       // ── Idle float loops ──
       gsap.to('.mascot', { y: -16, duration: 3.2, ease: 'sine.inOut', repeat: -1, yoyo: true });
       gsap.utils.toArray<HTMLElement>('.glass-card').forEach((card, i) => {
         gsap.to(card, {
-          y: i % 2 ? 16 : -16,
+          y: i % 2 ? 14 : -14,
           duration: 3 + i * 0.45,
           ease: 'sine.inOut',
           repeat: -1,
@@ -85,19 +85,24 @@ export function Landing() {
         stagger: 0.5,
       });
 
-      // ── Scroll reveals ──
-      gsap.utils.toArray<HTMLElement>('.reveal').forEach((el) => {
-        gsap.from(el, {
-          y: 40,
-          opacity: 0,
-          duration: 0.8,
-          scrollTrigger: { trigger: el, start: 'top 85%' },
-        });
-      });
-      ScrollTrigger.batch('.feature-card', {
-        start: 'top 88%',
+      // ── Scroll reveals (robust: hide → reveal once → refresh → force-show fallback) ──
+      const revealEls = gsap.utils.toArray<HTMLElement>('.reveal, .feature-card');
+      gsap.set(revealEls, { opacity: 0, y: 40 });
+      ScrollTrigger.batch('.reveal, .feature-card', {
+        start: 'top 92%',
+        once: true,
         onEnter: (els) =>
-          gsap.from(els, { y: 48, opacity: 0, duration: 0.7, ease: 'power3.out', stagger: 0.12 }),
+          gsap.to(els, { opacity: 1, y: 0, duration: 0.7, ease: 'power3.out', stagger: 0.1, overwrite: true }),
+      });
+      // Recompute trigger positions once the mascot image has loaded (layout shift),
+      // then force-show anything still hidden so a mis-fire can never strand a card.
+      ScrollTrigger.refresh();
+      gsap.delayedCall(1.6, () => {
+        revealEls.forEach((el) => {
+          if (Number(gsap.getProperty(el, 'opacity')) < 1) {
+            gsap.to(el, { opacity: 1, y: 0, duration: 0.4, overwrite: true });
+          }
+        });
       });
 
       // ── Pointer parallax (desktop only) ──
@@ -112,9 +117,9 @@ export function Landing() {
           const r = stageEl.getBoundingClientRect();
           const x = (e.clientX - (r.left + r.width / 2)) / (r.width / 2);
           const y = (e.clientY - (r.top + r.height / 2)) / (r.height / 2);
-          rotY(x * 9);
-          rotX(-y * 9);
-          cards.forEach((c, i) => setters[i](x * (Number(c.dataset.depth) || 30) * 0.4));
+          rotY(x * 7);
+          rotX(-y * 7);
+          cards.forEach((c, i) => setters[i](x * (Number(c.dataset.depth) || 30) * 0.25));
         };
         const onLeave = () => {
           rotY(0);
@@ -154,7 +159,7 @@ export function Landing() {
       />
 
       {/* ── Nav ── */}
-      <header className="relative z-20 mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
+      <header className="relative z-20 mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
         <Logo size={30} tone="light" />
         <a
           href={TELEGRAM_LINK}
@@ -165,7 +170,7 @@ export function Landing() {
       </header>
 
       {/* ── Hero ── */}
-      <section className="relative z-10 mx-auto grid max-w-6xl items-center gap-10 px-6 pb-20 pt-8 sm:pt-14 lg:grid-cols-[1.05fr_0.95fr] lg:gap-6 lg:pb-28">
+      <section className="relative z-10 mx-auto grid max-w-7xl items-center gap-12 px-6 pb-24 pt-8 sm:pt-14 lg:grid-cols-[1.1fr_1fr] lg:gap-16 lg:pb-32">
         {/* glows */}
         <div className="pointer-events-none absolute inset-0 -z-0 overflow-hidden">
           <div className="orb absolute -left-24 top-0 h-72 w-72 rounded-full bg-[#6c63ff]/30 blur-[100px]" />
@@ -241,8 +246,9 @@ export function Landing() {
               style={{ filter: 'drop-shadow(0 24px 40px rgba(108,99,255,0.45))' }}
             />
 
-            {/* glass cards */}
-            <GlassCard depth={55} className="left-0 top-6 sm:-left-2">
+            {/* glass cards — safe insets, quadrants; the two bottom ones are
+                desktop-only so the narrow mobile stage stays uncluttered. */}
+            <GlassCard depth={55} className="flex left-0 top-2">
               <span className="text-xl">🎁</span>
               <div>
                 <p className="text-[11px] uppercase tracking-wide text-[#9aa0ae]">Gift link</p>
@@ -250,7 +256,7 @@ export function Landing() {
               </div>
             </GlassCard>
 
-            <GlassCard depth={40} className="right-0 top-2 sm:-right-3">
+            <GlassCard depth={40} className="flex right-0 top-0">
               <span className="grid h-7 w-7 place-items-center rounded-full bg-[#0a8c5a]/20 text-[#34d399]">
                 <Icon name="check" size={16} strokeWidth={3} />
               </span>
@@ -260,7 +266,7 @@ export function Landing() {
               </div>
             </GlassCard>
 
-            <GlassCard depth={30} className="bottom-10 left-2 sm:left-0">
+            <GlassCard depth={30} className="hidden sm:flex bottom-6 left-0">
               <span className="text-lg">🛡</span>
               <div>
                 <p className="text-[11px] uppercase tracking-wide text-[#9aa0ae]">Escrow</p>
@@ -268,7 +274,7 @@ export function Landing() {
               </div>
             </GlassCard>
 
-            <GlassCard depth={50} className="bottom-4 right-0 sm:-right-2">
+            <GlassCard depth={50} className="flex bottom-2 right-0">
               <span className="grid h-7 w-7 place-items-center rounded-full bg-[#6c63ff]/20 text-[#a8acff]">
                 <Icon name="trending-up" size={16} />
               </span>
@@ -280,8 +286,8 @@ export function Landing() {
 
             {/* naira coin */}
             <div
-              data-depth={70}
-              className="glass-card absolute right-10 top-1/2 grid h-12 w-12 -translate-y-1/2 place-items-center rounded-full border border-white/15 bg-gradient-to-br from-[#6c63ff] to-[#8b5cf6] font-display text-lg font-bold text-white shadow-[0_10px_30px_-8px_rgba(108,99,255,0.7)]"
+              data-depth={65}
+              className="glass-card absolute left-4 top-1/2 grid h-12 w-12 -translate-y-1/2 place-items-center rounded-full border border-white/15 bg-gradient-to-br from-[#6c63ff] to-[#8b5cf6] font-display text-lg font-bold text-white shadow-[0_10px_30px_-8px_rgba(108,99,255,0.7)]"
             >
               ₦
             </div>
@@ -290,7 +296,7 @@ export function Landing() {
       </section>
 
       {/* ── Features ── */}
-      <section id="features" className="relative z-10 mx-auto max-w-6xl px-6 py-16">
+      <section id="features" className="relative z-10 mx-auto max-w-7xl px-6 py-16">
         <div className="reveal max-w-2xl">
           <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
             Everything you need to move money in chat.
@@ -301,7 +307,7 @@ export function Landing() {
           </p>
         </div>
 
-        <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map((f) => (
             <div
               key={f.title}
@@ -320,7 +326,7 @@ export function Landing() {
       </section>
 
       {/* ── Closing CTA ── */}
-      <section className="relative z-10 mx-auto max-w-6xl px-6 pb-24 pt-8">
+      <section className="relative z-10 mx-auto max-w-7xl px-6 pb-24 pt-8">
         <div className="reveal relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-10 text-center backdrop-blur-xl sm:p-16">
           <div className="pointer-events-none absolute -left-10 -top-10 h-48 w-48 rounded-full bg-[#6c63ff]/25 blur-[80px]" />
           <div className="pointer-events-none absolute -bottom-10 -right-10 h-56 w-56 rounded-full bg-[#8b5cf6]/20 blur-[90px]" />
@@ -350,7 +356,7 @@ export function Landing() {
 
       {/* ── Footer ── */}
       <footer className="relative z-10 border-t border-white/8 py-8">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-6 text-sm text-[#6b7180] sm:flex-row">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-6 text-sm text-[#6b7180] sm:flex-row">
           <Logo size={24} tone="light" />
           <span>Money at the speed of a message · for the SwiftyEx Hackfest</span>
         </div>
@@ -372,7 +378,7 @@ function GlassCard({
   return (
     <div
       data-depth={depth}
-      className={`glass-card absolute flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 shadow-[0_16px_50px_-16px_rgba(0,0,0,0.7)] backdrop-blur-xl ring-1 ring-inset ring-white/5 ${className}`}
+      className={`glass-card absolute items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 shadow-[0_16px_50px_-16px_rgba(0,0,0,0.7)] backdrop-blur-xl ring-1 ring-inset ring-white/5 ${className}`}
     >
       {children}
     </div>
