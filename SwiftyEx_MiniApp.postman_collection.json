@@ -1,0 +1,90 @@
+{
+  "info": {
+    "name": "SwiftyEx Mini App API",
+    "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "description": "Telegram Mini App endpoints for SwiftyEx.\n\nLocal DEBUG bypass: leave initData empty — the server returns the first Chat in the DB automatically.\n\nProduction: pass the real Telegram initData string in every request body.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Me — User Profile",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/miniapp/me",
+          "host": ["{{base_url}}"],
+          "path": ["miniapp", "me"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"initData\": \"\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "description": "Returns authenticated user profile: chat_id, username, first_name, kyc_verified, kyc_level, referral_code.\n\nLeave initData empty for local DEBUG bypass."
+      }
+    },
+    {
+      "name": "Wallets — All Balances & Addresses",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/miniapp/wallets",
+          "host": ["{{base_url}}"],
+          "path": ["miniapp", "wallets"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"initData\": \"\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "description": "Returns all wallets for the user: wallet_type, blockchain, balance, deposit address.\n\nLeave initData empty for local DEBUG bypass."
+      }
+    },
+    {
+      "name": "Transactions — Paginated History",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/miniapp/transactions",
+          "host": ["{{base_url}}"],
+          "path": ["miniapp", "transactions"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"initData\": \"\",\n  \"page\": 1,\n  \"wallet_type\": \"\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "description": "Returns paginated transaction history (20 per page).\n\nOptional filters:\n- page: integer (default 1)\n- wallet_type: \"btc\", \"ethereum\", \"usdt\", \"naira\" — omit or leave empty for all wallets.\n\nLeave initData empty for local DEBUG bypass."
+      }
+    },
+    {
+      "name": "Rates — Current Buy/Sell Rates",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/miniapp/rates",
+          "host": ["{{base_url}}"],
+          "path": ["miniapp", "rates"]
+        },
+        "description": "Public endpoint — no initData required.\n\nReturns current buy/sell rates for all assets from the Rate model."
+      }
+    }
+  ]
+}

@@ -31,6 +31,7 @@ export class LiveSwiftyexClient implements SwiftyexPort {
   private readonly encSecret: string;
   private readonly coingeckoKey?: string;
   private readonly cmcKey?: string;
+  private readonly swiftyexRatesUrl?: string;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -41,6 +42,7 @@ export class LiveSwiftyexClient implements SwiftyexPort {
     this.encSecret = config.get<string>('SWIFTYEX_KEY_ENC_SECRET', '');
     this.coingeckoKey = config.get<string>('COINGECKO_API_KEY') || undefined;
     this.cmcKey = config.get<string>('CMC_API_KEY') || undefined;
+    this.swiftyexRatesUrl = config.get<string>('SWIFTYEX_MINIAPP_BASE_URL') || undefined;
   }
 
   // ─── market data (app-level auth) ───────────────────────────────
@@ -52,6 +54,7 @@ export class LiveSwiftyexClient implements SwiftyexPort {
     // before keys. TODO: when SwiftyEx docs land, swap to:
     //   GET ${baseUrl}/market/prices?assets=USDT,BTC,ETH&quote=NGN  (via this.appFetch)
     const { prices } = await getMarketPrices({
+      swiftyexRatesUrl: this.swiftyexRatesUrl,
       coingeckoKey: this.coingeckoKey,
       cmcKey: this.cmcKey,
       logger: this.logger,

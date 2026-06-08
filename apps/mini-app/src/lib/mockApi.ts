@@ -165,6 +165,44 @@ export async function mockApi<T>(path: string, init?: RequestInit): Promise<T> {
     } as T;
   }
 
+  // ─── SwiftyEx Mini App (real-data proxy) — dev mocks ─────────
+  if (path === '/swiftyex/rates' && method === 'GET') {
+    return {
+      configured: true,
+      rates: [
+        { asset: 'USDT', buy: '1605.00', sell: '1612.00' },
+        { asset: 'BTC', buy: '101,250,000', sell: '101,800,000' },
+        { asset: 'ETH', buy: '5,420,000', sell: '5,470,000' },
+      ],
+    } as T;
+  }
+  if (path === '/swiftyex/wallets' && method === 'GET') {
+    return {
+      configured: true,
+      wallets: [
+        { wallet_type: 'naira', blockchain: 'fiat', balance: '42,500.00', deposit_address: 'SWIFT-NGN-001' },
+        { wallet_type: 'usdt', blockchain: 'tron', balance: '128.40', deposit_address: 'TQn9Y2khEsLJW1ChVWFMSMeRDow5oR1234' },
+        { wallet_type: 'btc', blockchain: 'bitcoin', balance: '0.0123', deposit_address: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh' },
+      ],
+    } as T;
+  }
+  if (path === '/swiftyex/me' && method === 'GET') {
+    return {
+      configured: true,
+      profile: { username: 'demo_user', kyc_verified: true, kyc_level: 2, referral_code: 'SWIFT-REF-42' },
+    } as T;
+  }
+  if (path.startsWith('/swiftyex/sx-transactions') && method === 'GET') {
+    return {
+      configured: true,
+      transactions: [
+        { type: 'deposit', asset: 'usdt', amount: '50.00', created_at: '2026-06-05' },
+        { type: 'buy', asset: 'btc', amount: '0.004', created_at: '2026-06-04' },
+        { type: 'withdrawal', asset: 'naira', amount: '10,000.00', created_at: '2026-06-03' },
+      ],
+    } as T;
+  }
+
   // ─── Wallet ──────────────────────────────────────────────────
   if (path === '/wallets/me' && method === 'GET') return wallet as T;
 

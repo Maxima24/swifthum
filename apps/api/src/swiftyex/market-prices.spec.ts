@@ -18,6 +18,37 @@ describe('getMarketPrices chain', () => {
     }) as unknown as typeof fetch;
   }
 
+  it('uses SwiftyEx rates first when configured (no CoinGecko call)', async () => {
+    routeFetch((url) => {
+      if (url.includes('miniapp/rates')) {
+        return {
+          body: [
+            { asset: 'USDT', buy: 1605 },
+            { asset: 'BTC', buy: 101_000_000 },
+            { asset: 'ETH', buy: 5_400_000 },
+          ],
+        };
+      }
+      throw new Error(`should not call ${url}`);
+    });
+    const { source, prices } = await getMarketPrices({ swiftyexRatesUrl: 'https://sx.example' });
+    expect(source).toBe('swiftyex');
+    expect(prices.USDT).toBe(160_500n);
+    expect(prices.BTC).toBe(10_100_000_000n);
+  });
+
+  it('falls through to CoinGecko when SwiftyEx rates are unusable', async () => {
+    routeFetch((url) => {
+      if (url.includes('miniapp/rates')) return { body: { nonsense: true } };
+      if (url.includes('coingecko')) {
+        return { body: { tether: { ngn: 1360 }, bitcoin: { ngn: 84_000_000 }, ethereum: { ngn: 2_240_000 } } };
+      }
+      throw new Error(`unexpected ${url}`);
+    });
+    const { source } = await getMarketPrices({ swiftyexRatesUrl: 'https://sx.example' });
+    expect(source).toBe('coingecko');
+  });
+
   it('uses CoinGecko when it succeeds (no fallback calls)', async () => {
     routeFetch((url) => {
       if (url.includes('coingecko')) {

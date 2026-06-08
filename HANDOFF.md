@@ -111,6 +111,10 @@ Full stack, all green (API tsc + `nest build` + 147 jest; mini-app tsc + vite bu
 ### All Builders-Track features shipped (Stages 1–4)
 Ledger → Gift Links → Receipts → Escrow. Remaining: polish + the 3-min demo script (HACKFEST_PLAN §7).
 
+## Post-Stage-4 additions
+- **Pay by @username** (BACKEND.md §22) — `User.username` (captured on sign-in + bot), `GET /users/lookup`, `POST /transfers` (direct wallet→wallet on the ledger), Mini-App `/pay/send-to-user`, bot `/pay @username <amount>`. Unknown handle → gift-link offer. **Capture is forward-looking** — a user's handle records on their next Mini-App sign-in / bot interaction (pre-existing users have NULL until then; backfill manually via SQL if needed).
+- **Real SwiftyEx Mini App API** (BACKEND.md §23) — proxies `/miniapp/{me,wallets,transactions,rates}` (initData-auth). **Real rates feed the Watcher** (`getMarketPrices` source #1, falls back to CoinGecko), and a Mini-App **Markets** tab shows real wallets/KYC/history. Gated on **`SWIFTYEX_MINIAPP_BASE_URL`** (must be set in prod/.env — unset → graceful CoinGecko/empty-state fallback). Per-user data is Mini-App-only (bot has no initData); bot `/prices` still shows real rates. The parser logs the raw `/miniapp/rates` shape once — check api logs to confirm/tune. All green: 168 jest / mini-app build / 64 pytest.
+
 ## Extra feature — Pay by @username (direct wallet→wallet) DONE
 Full stack, all green (API tsc + `nest build` + 156 jest; mini-app tsc + vite build; bot 64 pytest). Spec in [BACKEND.md §22](BACKEND.md).
 - **Send NGN straight to another SwiftHum user by Telegram @handle** — no QR/gift/intent. `User.username` column (`@unique`, lowercased) + migration `20260607160000_user_username`; captured on Mini-App sign-in (`upsertByTelegram`) + forwarded by the bot on exchange (optional `username`, stored by a `UsernameCaptureMiddleware`). Re-used handles move to the current owner. No backfill (fills in lazily).
