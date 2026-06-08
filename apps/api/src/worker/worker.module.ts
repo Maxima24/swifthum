@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from '../prisma/prisma.module';
 import { RedisModule } from '../redis/redis.module';
 import { LedgerModule } from '../ledger/ledger.module';
+import { IdempotencyModule } from '../idempotency/idempotency.module';
 import { AiModule } from '../ai/ai.module';
 import { SwiftyexModule } from '../swiftyex/swiftyex.module';
 import { BotModule } from '../bot/bot.module';
@@ -20,6 +21,7 @@ import { WatcherProcessor } from './watcher.processor';
     PrismaModule,
     RedisModule,
     LedgerModule,
+    IdempotencyModule,
     AiModule,
     SwiftyexModule,
     BotModule,
