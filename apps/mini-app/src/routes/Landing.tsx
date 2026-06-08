@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { Icon, type IconName } from '../components/Icon';
+import { Logo } from '../components/Logo';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -43,21 +44,37 @@ const FEATURES: { icon: IconName; title: string; body: string }[] = [
 
 export function Landing() {
   const root = useRef<HTMLDivElement>(null);
+  const scene = useRef<HTMLDivElement>(null);
+  const stage = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduce) return; // links + content render statically; skip motion
+    let cleanupPointer: (() => void) | undefined;
 
     const ctx = gsap.context(() => {
-      // Hero entrance
+      // ── Entrance ──
       const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
       tl.from('.hero-eyebrow', { y: 16, opacity: 0, duration: 0.6 })
         .from('.hero-line', { y: 40, opacity: 0, duration: 0.9, stagger: 0.12 }, '-=0.3')
         .from('.hero-sub', { y: 20, opacity: 0, duration: 0.7 }, '-=0.5')
         .from('.hero-cta', { y: 16, opacity: 0, scale: 0.96, duration: 0.6 }, '-=0.4')
-        .from('.hero-chip', { y: 12, opacity: 0, duration: 0.4, stagger: 0.08 }, '-=0.3');
+        .from('.hero-chip', { y: 12, opacity: 0, duration: 0.4, stagger: 0.08 }, '-=0.3')
+        .from('.mascot', { opacity: 0, scale: 0.82, duration: 0.9 }, '-=0.9')
+        .from('.glass-card', { opacity: 0, scale: 0.8, y: 24, duration: 0.7, stagger: 0.1 }, '-=0.6');
 
-      // Drifting accent orbs
+      if (reduce) return;
+
+      // ── Idle float loops ──
+      gsap.to('.mascot', { y: -16, duration: 3.2, ease: 'sine.inOut', repeat: -1, yoyo: true });
+      gsap.utils.toArray<HTMLElement>('.glass-card').forEach((card, i) => {
+        gsap.to(card, {
+          y: i % 2 ? 16 : -16,
+          duration: 3 + i * 0.45,
+          ease: 'sine.inOut',
+          repeat: -1,
+          yoyo: true,
+        });
+      });
       gsap.to('.orb', {
         y: (i) => (i % 2 ? 30 : -30),
         x: (i) => (i % 2 ? -20 : 20),
@@ -68,40 +85,77 @@ export function Landing() {
         stagger: 0.5,
       });
 
-      // Scroll-revealed sections
+      // ── Scroll reveals ──
       gsap.utils.toArray<HTMLElement>('.reveal').forEach((el) => {
         gsap.from(el, {
           y: 40,
           opacity: 0,
           duration: 0.8,
-          ease: 'power3.out',
           scrollTrigger: { trigger: el, start: 'top 85%' },
         });
       });
-
       ScrollTrigger.batch('.feature-card', {
         start: 'top 88%',
         onEnter: (els) =>
           gsap.from(els, { y: 48, opacity: 0, duration: 0.7, ease: 'power3.out', stagger: 0.12 }),
       });
+
+      // ── Pointer parallax (desktop only) ──
+      if (window.matchMedia('(pointer: fine)').matches && stage.current && scene.current) {
+        const stageEl = stage.current;
+        const rotY = gsap.quickTo(scene.current, 'rotationY', { duration: 0.7, ease: 'power3' });
+        const rotX = gsap.quickTo(scene.current, 'rotationX', { duration: 0.7, ease: 'power3' });
+        const cards = gsap.utils.toArray<HTMLElement>('.glass-card');
+        const setters = cards.map((c) => gsap.quickTo(c, 'x', { duration: 0.7, ease: 'power3' }));
+
+        const onMove = (e: PointerEvent) => {
+          const r = stageEl.getBoundingClientRect();
+          const x = (e.clientX - (r.left + r.width / 2)) / (r.width / 2);
+          const y = (e.clientY - (r.top + r.height / 2)) / (r.height / 2);
+          rotY(x * 9);
+          rotX(-y * 9);
+          cards.forEach((c, i) => setters[i](x * (Number(c.dataset.depth) || 30) * 0.4));
+        };
+        const onLeave = () => {
+          rotY(0);
+          rotX(0);
+          setters.forEach((s) => s(0));
+        };
+        stageEl.addEventListener('pointermove', onMove);
+        stageEl.addEventListener('pointerleave', onLeave);
+        cleanupPointer = () => {
+          stageEl.removeEventListener('pointermove', onMove);
+          stageEl.removeEventListener('pointerleave', onLeave);
+        };
+      }
     }, root);
 
-    return () => ctx.revert();
+    return () => {
+      cleanupPointer?.();
+      ctx.revert();
+    };
   }, []);
 
   return (
     <div
       ref={root}
-      className="min-h-screen w-full overflow-x-hidden bg-[#0a0b0f] text-[#f3f4f6] antialiased selection:bg-[#6c63ff]/30"
+      className="relative min-h-screen w-full overflow-x-hidden bg-[#0a0b0f] text-[#f3f4f6] antialiased selection:bg-[#6c63ff]/30"
     >
+      {/* dotted-grid depth layer */}
+      <div
+        className="pointer-events-none absolute inset-0 z-0 opacity-[0.4]"
+        style={{
+          backgroundImage:
+            'radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px)',
+          backgroundSize: '26px 26px',
+          maskImage: 'radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%)',
+          WebkitMaskImage: 'radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%)',
+        }}
+      />
+
       {/* ── Nav ── */}
       <header className="relative z-20 mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-        <div className="flex items-center gap-2">
-          <span className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-[#6c63ff] to-[#8b5cf6] text-white">
-            <Icon name="zap" size={18} />
-          </span>
-          <span className="font-display text-xl font-bold tracking-tight">SwiftHum</span>
-        </div>
+        <Logo size={30} tone="light" />
         <a
           href={TELEGRAM_LINK}
           className="rounded-full border border-white/10 px-4 py-1.5 text-sm font-semibold text-[#cdd0d8] transition-colors hover:border-white/25 hover:text-white"
@@ -111,7 +165,7 @@ export function Landing() {
       </header>
 
       {/* ── Hero ── */}
-      <section className="relative mx-auto max-w-6xl px-6 pb-24 pt-12 sm:pt-20">
+      <section className="relative z-10 mx-auto grid max-w-6xl items-center gap-10 px-6 pb-20 pt-8 sm:pt-14 lg:grid-cols-[1.05fr_0.95fr] lg:gap-6 lg:pb-28">
         {/* glows */}
         <div className="pointer-events-none absolute inset-0 -z-0 overflow-hidden">
           <div className="orb absolute -left-24 top-0 h-72 w-72 rounded-full bg-[#6c63ff]/30 blur-[100px]" />
@@ -119,12 +173,13 @@ export function Landing() {
           <div className="orb absolute bottom-0 left-1/3 h-64 w-64 rounded-full bg-[#3b82f6]/20 blur-[110px]" />
         </div>
 
-        <div className="relative z-10 max-w-3xl">
+        {/* copy */}
+        <div className="relative z-10">
           <span className="hero-eyebrow inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#a8acff]">
             <span className="h-1.5 w-1.5 rounded-full bg-[#6c63ff]" /> Telegram-native money
           </span>
 
-          <h1 className="font-display mt-6 text-[2.7rem] font-bold leading-[1.05] tracking-[-0.02em] sm:text-6xl">
+          <h1 className="font-display mt-6 text-[2.6rem] font-bold leading-[1.05] tracking-[-0.02em] sm:text-[3.4rem]">
             <span className="hero-line block">Money that moves at</span>
             <span className="hero-line block bg-gradient-to-r from-[#a8acff] via-[#8b5cf6] to-[#6c63ff] bg-clip-text text-transparent">
               the speed of a message.
@@ -139,7 +194,7 @@ export function Landing() {
           <div className="mt-9 flex flex-wrap items-center gap-3">
             <a
               href={TELEGRAM_LINK}
-              className="hero-cta group inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#6c63ff] to-[#8b5cf6] px-7 py-3.5 text-base font-bold text-white shadow-[0_8px_30px_-6px_rgba(108,99,255,0.6)] transition-transform hover:scale-[1.03] active:scale-100"
+              className="hero-cta inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#6c63ff] to-[#8b5cf6] px-7 py-3.5 text-base font-bold text-white shadow-[0_8px_30px_-6px_rgba(108,99,255,0.6)] transition-transform hover:scale-[1.03] active:scale-100"
             >
               <Icon name="send" size={18} />
               Open in Telegram
@@ -154,20 +209,88 @@ export function Landing() {
           </div>
 
           <div className="mt-10 flex flex-wrap gap-x-6 gap-y-2 text-sm text-[#7e8493]">
-            {['Instant NGN transfers', 'No app install', 'Verifiable on-chain-style receipts'].map(
-              (t) => (
-                <span key={t} className="hero-chip inline-flex items-center gap-1.5">
-                  <Icon name="check" size={14} className="text-[#6c63ff]" />
-                  {t}
-                </span>
-              ),
-            )}
+            {['Instant NGN transfers', 'No app install', 'Verifiable receipts'].map((t) => (
+              <span key={t} className="hero-chip inline-flex items-center gap-1.5">
+                <Icon name="check" size={14} className="text-[#6c63ff]" />
+                {t}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* 3D scene */}
+        <div
+          ref={stage}
+          className="relative z-10 h-[360px] sm:h-[440px] lg:h-[540px]"
+          style={{ perspective: '1100px' }}
+        >
+          <div
+            ref={scene}
+            className="absolute inset-0"
+            style={{ transformStyle: 'preserve-3d' }}
+          >
+            {/* halo */}
+            <div className="absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#6c63ff]/30 blur-[70px]" />
+
+            {/* mascot centerpiece */}
+            <img
+              src="/mascot.png"
+              alt="SwiftHum mascot"
+              draggable={false}
+              className="mascot absolute left-1/2 top-1/2 w-40 -translate-x-1/2 -translate-y-1/2 select-none sm:w-52 lg:w-60"
+              style={{ filter: 'drop-shadow(0 24px 40px rgba(108,99,255,0.45))' }}
+            />
+
+            {/* glass cards */}
+            <GlassCard depth={55} className="left-0 top-6 sm:-left-2">
+              <span className="text-xl">🎁</span>
+              <div>
+                <p className="text-[11px] uppercase tracking-wide text-[#9aa0ae]">Gift link</p>
+                <p className="font-display text-base font-bold text-white">₦5,000</p>
+              </div>
+            </GlassCard>
+
+            <GlassCard depth={40} className="right-0 top-2 sm:-right-3">
+              <span className="grid h-7 w-7 place-items-center rounded-full bg-[#0a8c5a]/20 text-[#34d399]">
+                <Icon name="check" size={16} strokeWidth={3} />
+              </span>
+              <div>
+                <p className="text-[11px] uppercase tracking-wide text-[#9aa0ae]">Receipt</p>
+                <p className="text-sm font-semibold text-white">Verified ✓</p>
+              </div>
+            </GlassCard>
+
+            <GlassCard depth={30} className="bottom-10 left-2 sm:left-0">
+              <span className="text-lg">🛡</span>
+              <div>
+                <p className="text-[11px] uppercase tracking-wide text-[#9aa0ae]">Escrow</p>
+                <p className="text-sm font-semibold text-white">Funds locked</p>
+              </div>
+            </GlassCard>
+
+            <GlassCard depth={50} className="bottom-4 right-0 sm:-right-2">
+              <span className="grid h-7 w-7 place-items-center rounded-full bg-[#6c63ff]/20 text-[#a8acff]">
+                <Icon name="trending-up" size={16} />
+              </span>
+              <div>
+                <p className="text-[11px] uppercase tracking-wide text-[#9aa0ae]">USDT · live</p>
+                <p className="text-sm font-semibold text-white tnum">₦1,392</p>
+              </div>
+            </GlassCard>
+
+            {/* naira coin */}
+            <div
+              data-depth={70}
+              className="glass-card absolute right-10 top-1/2 grid h-12 w-12 -translate-y-1/2 place-items-center rounded-full border border-white/15 bg-gradient-to-br from-[#6c63ff] to-[#8b5cf6] font-display text-lg font-bold text-white shadow-[0_10px_30px_-8px_rgba(108,99,255,0.7)]"
+            >
+              ₦
+            </div>
           </div>
         </div>
       </section>
 
       {/* ── Features ── */}
-      <section id="features" className="relative mx-auto max-w-6xl px-6 py-16">
+      <section id="features" className="relative z-10 mx-auto max-w-6xl px-6 py-16">
         <div className="reveal max-w-2xl">
           <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
             Everything you need to move money in chat.
@@ -182,7 +305,7 @@ export function Landing() {
           {FEATURES.map((f) => (
             <div
               key={f.title}
-              className="feature-card group rounded-2xl border border-white/8 bg-white/[0.03] p-6 transition-colors hover:border-[#6c63ff]/40 hover:bg-white/[0.05]"
+              className="feature-card group rounded-2xl border border-white/10 bg-white/[0.04] p-6 backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-[#6c63ff]/40 hover:bg-white/[0.06] hover:shadow-[0_20px_50px_-20px_rgba(108,99,255,0.5)]"
             >
               <span className="grid h-11 w-11 place-items-center rounded-xl bg-[#6c63ff]/15 text-[#a8acff] transition-colors group-hover:bg-[#6c63ff]/25">
                 <Icon name={f.icon} size={22} />
@@ -197,10 +320,18 @@ export function Landing() {
       </section>
 
       {/* ── Closing CTA ── */}
-      <section className="mx-auto max-w-6xl px-6 pb-24 pt-8">
-        <div className="reveal relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[#16131f] to-[#0e0f17] p-10 text-center sm:p-16">
+      <section className="relative z-10 mx-auto max-w-6xl px-6 pb-24 pt-8">
+        <div className="reveal relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-10 text-center backdrop-blur-xl sm:p-16">
           <div className="pointer-events-none absolute -left-10 -top-10 h-48 w-48 rounded-full bg-[#6c63ff]/25 blur-[80px]" />
           <div className="pointer-events-none absolute -bottom-10 -right-10 h-56 w-56 rounded-full bg-[#8b5cf6]/20 blur-[90px]" />
+          <img
+            src="/mascot.png"
+            alt=""
+            aria-hidden
+            draggable={false}
+            className="relative mx-auto mb-6 w-20 select-none"
+            style={{ filter: 'drop-shadow(0 16px 30px rgba(108,99,255,0.4))' }}
+          />
           <h2 className="font-display relative text-3xl font-bold tracking-tight sm:text-5xl">
             Open SwiftHum in Telegram.
           </h2>
@@ -218,12 +349,32 @@ export function Landing() {
       </section>
 
       {/* ── Footer ── */}
-      <footer className="border-t border-white/8 py-8">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-6 text-sm text-[#6b7180] sm:flex-row">
-          <span className="font-display font-semibold text-[#cdd0d8]">SwiftHum</span>
+      <footer className="relative z-10 border-t border-white/8 py-8">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-6 text-sm text-[#6b7180] sm:flex-row">
+          <Logo size={24} tone="light" />
           <span>Money at the speed of a message · for the SwiftyEx Hackfest</span>
         </div>
       </footer>
+    </div>
+  );
+}
+
+/** Frosted-glass floating card. `depth` drives pointer-parallax strength. */
+function GlassCard({
+  depth,
+  className = '',
+  children,
+}: {
+  depth: number;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      data-depth={depth}
+      className={`glass-card absolute flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 shadow-[0_16px_50px_-16px_rgba(0,0,0,0.7)] backdrop-blur-xl ring-1 ring-inset ring-white/5 ${className}`}
+    >
+      {children}
     </div>
   );
 }
