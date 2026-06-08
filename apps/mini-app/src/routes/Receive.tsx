@@ -1,24 +1,18 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useRedeem } from '../hooks/payments';
 import { useBackButton } from '../hooks/useBackButton';
 import { haptic } from '../lib/tg';
 import { formatNgn } from '../lib/format';
-import { initGgwave, startListening, type MicListener } from '../lib/ggwave';
 import { friendlyRedeemError } from '../lib/errors';
 import { QrScanPanel } from '../components/QrScanPanel';
 import { Icon } from '../components/Icon';
 import type { RedemptionResult } from '../types';
-import { Header, Card, Button, Segmented, Spinner, EmptyState } from '../ui';
-
-type Mode = 'listen' | 'scan';
+import { Header, Card, Button } from '../ui';
 
 export function Receive() {
   const navigate = useNavigate();
   const redeem = useRedeem();
-  const [mode, setMode] = useState<Mode>('listen');
-  const [listening, setListening] = useState(false);
-  const [listenError, setListenError] = useState<string | null>(null);
   const [result, setResult] = useState<RedemptionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,41 +37,6 @@ export function Receive() {
     },
     [result, redeem],
   );
-
-  useEffect(() => {
-    if (mode !== 'listen' || result) return;
-    let micListener: MicListener | null = null;
-    let cancelled = false;
-
-    (async () => {
-      const ok = await initGgwave();
-      if (!ok) {
-        if (!cancelled) setListenError('Sound mode unavailable — switch to Scan QR.');
-        return;
-      }
-      try {
-        micListener = await startListening((token) => tryRedeem(token));
-        if (cancelled) {
-          micListener.stop();
-          return;
-        }
-        setListening(true);
-      } catch (e: any) {
-        if (!cancelled) {
-          setListenError(String(e?.message ?? 'Mic access denied') + ' — switch to Scan QR.');
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      try {
-        micListener?.stop();
-      } catch {
-        /* swallow */
-      }
-    };
-  }, [mode, result, tryRedeem]);
 
   if (result) {
     return (
@@ -108,65 +67,14 @@ export function Receive() {
       <Header back onBack={goBack} title="Receive" subtitle="Waiting for payment" />
 
       <div className="flex flex-col gap-6 pt-5">
-        <Segmented<Mode>
-          value={mode}
-          onChange={(m) => {
-            haptic('light');
-            setError(null);
-            setListenError(null);
-            setMode(m);
-          }}
-          options={[
-            { value: 'listen', label: 'Listen', icon: 'mic' },
-            { value: 'scan', label: 'Scan QR', icon: 'camera' },
-          ]}
-        />
-
-        {mode === 'listen' ? (
-          <Card padded={false} className="p-8 min-h-[280px] flex items-center justify-center">
-            {listenError ? (
-              <EmptyState
-                icon="alert"
-                title="Mic unavailable"
-                description={listenError}
-                action={
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      haptic('light');
-                      setMode('scan');
-                    }}
-                  >
-                    Switch to Scan QR
-                  </Button>
-                }
-              />
-            ) : (
-              <div className="flex flex-col items-center gap-5 text-center">
-                <span className="w-20 h-20 rounded-full bg-accent-soft text-accent flex items-center justify-center">
-                  <Icon name="mic" size={32} />
-                </span>
-                <div className="flex items-center gap-2 text-text-secondary">
-                  {listening && <Spinner size={16} />}
-                  <p className="text-sm max-w-[16rem] leading-snug">
-                    {listening
-                      ? 'Listening for the ultrasonic chirp from the sender…'
-                      : 'Warming up mic…'}
-                  </p>
-                </div>
-              </div>
-            )}
-          </Card>
-        ) : (
-          <Card>
-            <QrScanPanel
-              onResult={tryRedeem}
-              onError={() =>
-                setError("Couldn't access the camera — paste the token from the sender instead.")
-              }
-            />
-          </Card>
-        )}
+        <Card>
+          <QrScanPanel
+            onResult={tryRedeem}
+            onError={() =>
+              setError("Couldn't access the camera — paste the token from the sender instead.")
+            }
+          />
+        </Card>
 
         {error && (
           <Card padded={false} className="p-3 bg-danger-soft border-0 flex items-start gap-2">

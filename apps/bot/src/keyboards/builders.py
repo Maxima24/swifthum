@@ -135,11 +135,11 @@ def swiftyex_kb(linked: bool) -> InlineKeyboardMarkup:
 
 
 def parse_confirm_kb(miniapp_url: str, amount_minor: int) -> InlineKeyboardMarkup:
-    """Confirmation keyboard for an NL parse: '🎵 Open & chirp' WebApp button
+    """Confirmation keyboard for an NL parse: '💸 Open & pay' WebApp button
     + '✖' cancel callback. The Mini App's Send screen reads ?amount= and prefills."""
     sep = "&" if "?" in miniapp_url else "?"
     deep_link = f"{miniapp_url.rstrip('/')}/pay/send{sep}amount={amount_minor}"
     return InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="🎵 Open & chirp", web_app=WebAppInfo(url=deep_link)),
+        InlineKeyboardButton(text="💸 Open & pay", web_app=WebAppInfo(url=deep_link)),
         InlineKeyboardButton(text="✖", callback_data=CB_PARSE_CANCEL),
     ]])

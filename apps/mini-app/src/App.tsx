@@ -16,6 +16,9 @@ import { EscrowList } from './routes/EscrowList';
 import { EscrowDetail } from './routes/EscrowDetail';
 import { Markets } from './routes/Markets';
 import { MarketsTransactions } from './routes/MarketsTransactions';
+import { Landing } from './routes/Landing';
+import { isInsideTelegram } from './lib/tg';
+import { useMocks } from './lib/api';
 import { TabBar } from './components/TabBar';
 import { Sidebar } from './components/Sidebar';
 import { Shell } from './components/Shell';
@@ -23,7 +26,7 @@ import { MobileBrandBar } from './components/MobileBrandBar';
 import { AuthGate } from './components/AuthGate';
 
 export function App() {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
 
   // Public, unauthenticated receipt links (`/r/:id?token=…`) render OUTSIDE the
   // AuthGate so a shared receipt opens for anyone in any browser — no Telegram
@@ -35,6 +38,14 @@ export function App() {
         <Route path="*" element={<Navigate to="/rules" replace />} />
       </Routes>
     );
+  }
+
+  // Browser visitors (no Telegram session) get the marketing landing page with a
+  // CTA into the bot. Dev/mock mode still loads the app; `?landing=1` previews the
+  // landing, `?landing=0` forces the app.
+  const landingParam = new URLSearchParams(search).get('landing');
+  if (landingParam === '1' || (landingParam !== '0' && !isInsideTelegram() && !useMocks)) {
+    return <Landing />;
   }
 
   return (
