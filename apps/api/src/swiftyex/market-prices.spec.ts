@@ -18,26 +18,24 @@ describe('getMarketPrices chain', () => {
     }) as unknown as typeof fetch;
   }
 
-  it('uses SwiftyEx rates first when configured (no CoinGecko call)', async () => {
+  it('overlays the real SwiftyEx USDT (usdnaira) on the CoinGecko base for BTC/ETH', async () => {
     routeFetch((url) => {
       if (url.includes('miniapp/rates')) {
-        return {
-          body: [
-            { asset: 'USDT', buy: 1605 },
-            { asset: 'BTC', buy: 101_000_000 },
-            { asset: 'ETH', buy: 5_400_000 },
-          ],
-        };
+        return { body: { rates: [{ symbol: 'usdnaira', buy: '1355.00', sell: '1430.00' }] } };
       }
-      throw new Error(`should not call ${url}`);
+      if (url.includes('coingecko')) {
+        return { body: { tether: { ngn: 1360 }, bitcoin: { ngn: 84_000_000 }, ethereum: { ngn: 2_240_000 } } };
+      }
+      throw new Error(`unexpected ${url}`);
     });
     const { source, prices } = await getMarketPrices({ swiftyexRatesUrl: 'https://sx.example' });
     expect(source).toBe('swiftyex');
-    expect(prices.USDT).toBe(160_500n);
-    expect(prices.BTC).toBe(10_100_000_000n);
+    expect(prices.USDT).toBe(139_250n); // SwiftyEx mid of 1355/1430
+    expect(prices.BTC).toBe(8_400_000_000n); // CoinGecko
+    expect(prices.ETH).toBe(224_000_000n); // CoinGecko
   });
 
-  it('falls through to CoinGecko when SwiftyEx rates are unusable', async () => {
+  it('falls back to the full CoinGecko base when SwiftyEx rates are unusable', async () => {
     routeFetch((url) => {
       if (url.includes('miniapp/rates')) return { body: { nonsense: true } };
       if (url.includes('coingecko')) {

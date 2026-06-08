@@ -167,13 +167,10 @@ export async function mockApi<T>(path: string, init?: RequestInit): Promise<T> {
 
   // ─── SwiftyEx Mini App (real-data proxy) — dev mocks ─────────
   if (path === '/swiftyex/rates' && method === 'GET') {
+    // Mirrors the real SwiftyEx shape: { rates: [{ symbol, buy, sell }] } — only usdnaira.
     return {
       configured: true,
-      rates: [
-        { asset: 'USDT', buy: '1605.00', sell: '1612.00' },
-        { asset: 'BTC', buy: '101,250,000', sell: '101,800,000' },
-        { asset: 'ETH', buy: '5,420,000', sell: '5,470,000' },
-      ],
+      rates: { rates: [{ symbol: 'usdnaira', buy: '1355.00', sell: '1430.00' }] },
     } as T;
   }
   if (path === '/swiftyex/wallets' && method === 'GET') {

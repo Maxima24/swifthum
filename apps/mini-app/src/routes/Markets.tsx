@@ -8,6 +8,7 @@ import {
   field,
   normalizeRates,
   normalizeWallets,
+  prettyRateLabel,
   type SxRate,
   type SxWallet,
 } from '../lib/swiftyexNormalize';
@@ -165,7 +166,7 @@ function WalletRow({ wallet }: { wallet: SxWallet }) {
 function RateRow({ rate }: { rate: SxRate }) {
   return (
     <div className="grid grid-cols-3 items-center text-sm">
-      <span className="font-semibold text-text-primary uppercase">{rate.asset ?? '—'}</span>
+      <span className="font-semibold text-text-primary">{prettyRateLabel(rate.asset)}</span>
       <span className="text-right tnum text-text-secondary">{rate.buy ?? '—'}</span>
       <span className="text-right tnum text-text-secondary">{rate.sell ?? '—'}</span>
     </div>
