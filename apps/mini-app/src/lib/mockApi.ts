@@ -245,7 +245,19 @@ export async function mockApi<T>(path: string, init?: RequestInit): Promise<T> {
     if (typeof body?.notificationsEnabled === 'boolean') {
       wallet = { ...wallet, notificationsEnabled: body.notificationsEnabled };
     }
-    return { notificationsEnabled: wallet.notificationsEnabled ?? true } as T;
+    if (typeof body?.email === 'string') {
+      wallet = { ...wallet, email: body.email.trim().toLowerCase() };
+    }
+    return {
+      notificationsEnabled: wallet.notificationsEnabled ?? true,
+      email: wallet.email ?? null,
+    } as T;
+  }
+  const emailReceiptMatch = path.match(/^\/receipts\/([^/]+)\/email$/);
+  if (emailReceiptMatch && method === 'POST') {
+    const to = (body?.email as string) || wallet.email;
+    if (!to) return { status: 'no_email' } as T;
+    return { status: 'ok', to } as T;
   }
 
   // ─── Payment intents (sender) ────────────────────────────────

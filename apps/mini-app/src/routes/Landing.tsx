@@ -6,8 +6,12 @@ import { Logo } from '../components/Logo';
 
 gsap.registerPlugin(ScrollTrigger);
 
-/** Direct Mini-App launch link (BotFather direct-link launch). */
-const TELEGRAM_LINK = 'https://t.me/swifthum_bot?startapp';
+/**
+ * Opens the @swifthum_bot chat, where the "Open SwiftHum" menu button launches
+ * the Mini App. Reliable without any BotFather Mini-App config. (To open the app
+ * in one tap instead, set a Main Mini App in BotFather and use `?startapp`.)
+ */
+const TELEGRAM_LINK = 'https://t.me/swifthum_bot';
 
 const FEATURES: { icon: IconName; title: string; body: string }[] = [
   {
@@ -159,7 +163,7 @@ export function Landing() {
       />
 
       {/* ── Nav ── */}
-      <header className="relative z-20 mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
+      <header className="relative z-20 mx-auto flex w-full 2xl:max-w-[110rem] items-center justify-between px-5 sm:px-8 lg:px-14 xl:px-20 py-5">
         <Logo size={30} tone="light" />
         <a
           href={TELEGRAM_LINK}
@@ -170,7 +174,7 @@ export function Landing() {
       </header>
 
       {/* ── Hero ── */}
-      <section className="relative z-10 mx-auto grid max-w-7xl items-center gap-12 px-6 pb-24 pt-8 sm:pt-14 lg:grid-cols-[1.1fr_1fr] lg:gap-16 lg:pb-32">
+      <section className="relative z-10 mx-auto grid w-full 2xl:max-w-[110rem] items-center gap-12 px-5 sm:px-8 lg:px-14 xl:px-20 pb-24 pt-8 sm:pt-14 lg:grid-cols-[1.1fr_1fr] lg:gap-16 lg:pb-32">
         {/* glows */}
         <div className="pointer-events-none absolute inset-0 -z-0 overflow-hidden">
           <div className="orb absolute -left-24 top-0 h-72 w-72 rounded-full bg-[#6c63ff]/30 blur-[100px]" />
@@ -296,7 +300,7 @@ export function Landing() {
       </section>
 
       {/* ── Features ── */}
-      <section id="features" className="relative z-10 mx-auto max-w-7xl px-6 py-16">
+      <section id="features" className="relative z-10 mx-auto w-full 2xl:max-w-[110rem] px-5 sm:px-8 lg:px-14 xl:px-20 py-16">
         <div className="reveal max-w-2xl">
           <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
             Everything you need to move money in chat.
@@ -326,7 +330,7 @@ export function Landing() {
       </section>
 
       {/* ── Closing CTA ── */}
-      <section className="relative z-10 mx-auto max-w-7xl px-6 pb-24 pt-8">
+      <section className="relative z-10 mx-auto w-full 2xl:max-w-[110rem] px-5 sm:px-8 lg:px-14 xl:px-20 pb-24 pt-8">
         <div className="reveal relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-10 text-center backdrop-blur-xl sm:p-16">
           <div className="pointer-events-none absolute -left-10 -top-10 h-48 w-48 rounded-full bg-[#6c63ff]/25 blur-[80px]" />
           <div className="pointer-events-none absolute -bottom-10 -right-10 h-56 w-56 rounded-full bg-[#8b5cf6]/20 blur-[90px]" />
@@ -356,7 +360,7 @@ export function Landing() {
 
       {/* ── Footer ── */}
       <footer className="relative z-10 border-t border-white/8 py-8">
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-6 text-sm text-[#6b7180] sm:flex-row">
+        <div className="mx-auto flex w-full 2xl:max-w-[110rem] flex-col items-center justify-between gap-3 px-5 sm:px-8 lg:px-14 xl:px-20 text-sm text-[#6b7180] sm:flex-row">
           <Logo size={24} tone="light" />
           <span>Money at the speed of a message · for the SwiftyEx Hackfest</span>
         </div>

@@ -3,6 +3,7 @@ import { UsersService } from './users.service';
 interface FakeUser {
   id: string;
   username: string | null;
+  email: string | null;
   displayName: string;
   telegramId: bigint;
   notificationsEnabled: boolean;
@@ -51,6 +52,7 @@ function makeService(seed: FakeUser[] = []) {
 const user = (over: Partial<FakeUser> = {}): FakeUser => ({
   id: 'u_a',
   username: null,
+  email: null,
   displayName: 'Ada',
   telegramId: 1n,
   notificationsEnabled: true,
@@ -83,6 +85,15 @@ describe('UsersService.findByUsername', () => {
     const { svc } = makeService([user({ id: 'u_a', username: 'bob' })]);
     expect((await svc.findByUsername('@BOB'))?.id).toBe('u_a');
     expect(await svc.findByUsername('ghost')).toBeNull();
+  });
+});
+
+describe('UsersService.updatePreferences (email)', () => {
+  it('persists and normalizes (lowercase/trim) the receipt email', async () => {
+    const { svc, users } = makeService([user({ id: 'u_a' })]);
+    const res = await svc.updatePreferences('u_a', { email: '  Ada@Gmail.com ' });
+    expect(users.get('u_a')!.email).toBe('ada@gmail.com');
+    expect(res.email).toBe('ada@gmail.com');
   });
 });
 

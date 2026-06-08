@@ -11,6 +11,7 @@ import {
   Header,
   Card,
   Button,
+  Input,
   ListGroup,
   ListRow,
   Toggle,
@@ -29,6 +30,8 @@ export function Settings() {
   const { data: wallet } = useWallet();
   const prefsMutation = useUpdatePreferences();
   const [notifications, setNotifications] = useState(true);
+  const [email, setEmail] = useState('');
+  const [emailSaved, setEmailSaved] = useState(false);
   const { pref: themePref } = useTheme();
 
   useEffect(() => {
@@ -36,6 +39,23 @@ export function Settings() {
       setNotifications(wallet.notificationsEnabled);
     }
   }, [wallet?.notificationsEnabled]);
+
+  useEffect(() => {
+    if (wallet?.email != null) setEmail(wallet.email);
+  }, [wallet?.email]);
+
+  const saveEmail = async () => {
+    if (prefsMutation.isPending) return;
+    haptic('medium');
+    try {
+      await prefsMutation.mutateAsync({ email: email.trim() });
+      setEmailSaved(true);
+      haptic('success');
+      setTimeout(() => setEmailSaved(false), 1800);
+    } catch {
+      haptic('error');
+    }
+  };
 
   const toggleNotifications = async (next: boolean) => {
     if (prefsMutation.isPending) return;
@@ -106,6 +126,32 @@ export function Settings() {
               />
             }
           />
+        </ListGroup>
+
+        <ListGroup title="Email receipts">
+          <div className="p-4 flex flex-col gap-3">
+            <p className="text-sm text-text-secondary">
+              Get a signed, verifiable receipt in your inbox for every payment.
+            </p>
+            <Input
+              type="email"
+              inputMode="email"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              placeholder="you@gmail.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <Button
+              block
+              variant="secondary"
+              disabled={prefsMutation.isPending || !email.includes('@')}
+              onClick={() => void saveEmail()}
+            >
+              {prefsMutation.isPending ? 'Saving…' : emailSaved ? 'Saved ✓' : 'Save email'}
+            </Button>
+          </div>
         </ListGroup>
 
         <div>

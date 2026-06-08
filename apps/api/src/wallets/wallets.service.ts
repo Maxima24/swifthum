@@ -19,13 +19,14 @@ export class WalletsService {
   async getMineWithPrefs(userId: string) {
     const wallet = await this.prisma.wallet.findUnique({
       where: { userId },
-      include: { user: { select: { notificationsEnabled: true } } },
+      include: { user: { select: { notificationsEnabled: true, email: true } } },
     });
     if (!wallet) throw Errors.notFound('wallet not found');
     return {
       balanceMinor: wallet.balanceMinor,
       currency: wallet.currency,
       notificationsEnabled: wallet.user.notificationsEnabled,
+      email: wallet.user.email,
     };
   }
 }

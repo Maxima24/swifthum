@@ -1,8 +1,16 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { IsEmail, IsOptional, MaxLength } from 'class-validator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtPayload } from '../auth/current-user.decorator';
 import { Public } from '../auth/public.decorator';
 import { ReceiptsService } from './receipts.service';
+
+class EmailReceiptDto {
+  @IsOptional()
+  @IsEmail()
+  @MaxLength(160)
+  email?: string;
+}
 
 @Controller()
 export class ReceiptsController {
@@ -12,6 +20,16 @@ export class ReceiptsController {
   @Get('receipts')
   list(@CurrentUser() user: JwtPayload) {
     return this.receipts.listForUser(user.sub);
+  }
+
+  /** Email a receipt to the caller (their saved email, or one passed in the body). */
+  @Post('receipts/:id/email')
+  emailReceipt(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: EmailReceiptDto,
+  ) {
+    return this.receipts.emailReceipt(user.sub, id, dto.email);
   }
 
   /**

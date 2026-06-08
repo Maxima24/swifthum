@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { EmailService } from '../email/email.service';
+import { Errors } from '../common/errors';
 import { prefixedId } from '../common/ids';
 import { sign, verify } from '../common/signed-token';
 
@@ -53,6 +55,7 @@ export class ReceiptsService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly email: EmailService,
     config: ConfigService,
   ) {
     // Prefer a dedicated secret; fall back to the always-present payment secret
@@ -155,6 +158,88 @@ export class ReceiptsService {
     };
   }
 
+  /**
+   * Email a receipt to the caller. The caller must be a party to the receipt.
+   * Sends to `emailOverride` if given, else the caller's saved `User.email`.
+   * Returns a status the UI can branch on (no hard error for the common cases).
+   */
+  async emailReceipt(
+    userId: string,
+    receiptId: string,
+    emailOverride?: string,
+  ): Promise<{ status: 'ok' | 'no_email' | 'not_configured'; to?: string }> {
+    const receipt = (await this.prisma.receipt.findUnique({
+      where: { id: receiptId },
+    })) as ReceiptRow | null;
+    if (!receipt) throw Errors.notFound('receipt not found');
+    if (receipt.fromUserId !== userId && receipt.toUserId !== userId) {
+      throw Errors.notFound('receipt not found'); // not a party → don't reveal it exists
+    }
+
+    if (!this.email.isConfigured()) return { status: 'not_configured' };
+
+    let to = emailOverride?.trim().toLowerCase();
+    if (!to) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { email: true },
+      });
+      to = user?.email ?? undefined;
+    }
+    if (!to) return { status: 'no_email' };
+
+    const direction = receipt.toUserId === userId ? 'received' : 'sent';
+    const sent = await this.email.send(this.buildReceiptEmail(receipt, to, direction));
+    return sent ? { status: 'ok', to } : { status: 'not_configured' };
+  }
+
+  private buildReceiptEmail(
+    r: ReceiptRow,
+    to: string,
+    direction: 'received' | 'sent',
+  ) {
+    const amount = `₦${(Number(r.amountMinor) / 100).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const counterparty = direction === 'received' ? r.fromName : r.toName;
+    const verb = direction === 'received' ? 'received from' : 'sent to';
+    const verifyUrl = `${this.miniappUrl}/r/${r.id}?token=${r.token}`;
+    const when = r.createdAt.toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: 'short' });
+    const subject = `SwiftHum receipt — ${amount} ${verb} ${counterparty}`;
+
+    const text = [
+      `SwiftHum receipt`,
+      ``,
+      `${amount} ${verb} ${counterparty}`,
+      `Type: ${r.sourceType}`,
+      `Date: ${when}`,
+      ``,
+      `Verify this receipt: ${verifyUrl}`,
+      ``,
+      `This is a tamper-proof, signed receipt — editing the link breaks verification.`,
+    ].join('\n');
+
+    const html = `
+  <div style="margin:0;padding:24px;background:#0a0b0f;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#e7e8ec">
+    <div style="max-width:480px;margin:0 auto;background:#14151c;border:1px solid rgba(255,255,255,0.08);border-radius:18px;overflow:hidden">
+      <div style="padding:22px 24px;background:linear-gradient(135deg,#6c63ff,#8b5cf6)">
+        <div style="font-size:20px;font-weight:800;color:#fff">SwiftHum</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.85);text-transform:uppercase;letter-spacing:.12em">Verifiable receipt</div>
+      </div>
+      <div style="padding:26px 24px">
+        <div style="font-size:30px;font-weight:800;color:#fff">${amount}</div>
+        <div style="margin-top:4px;color:#9aa0ae">${verb} <b style="color:#e7e8ec">${escapeHtml(counterparty)}</b></div>
+        <table style="width:100%;margin-top:20px;font-size:14px;color:#9aa0ae">
+          <tr><td style="padding:6px 0">Type</td><td style="text-align:right;color:#e7e8ec;text-transform:capitalize">${escapeHtml(r.sourceType)}</td></tr>
+          <tr><td style="padding:6px 0">Date</td><td style="text-align:right;color:#e7e8ec">${escapeHtml(when)}</td></tr>
+        </table>
+        <a href="${verifyUrl}" style="display:block;margin-top:24px;padding:14px;text-align:center;background:linear-gradient(135deg,#6c63ff,#8b5cf6);color:#fff;font-weight:700;text-decoration:none;border-radius:999px">✅ Verify this receipt</a>
+        <p style="margin-top:16px;font-size:12px;color:#6b7180;text-align:center">Signed &amp; tamper-proof — editing the link breaks verification.</p>
+      </div>
+    </div>
+  </div>`;
+
+    return { to, subject, html, text };
+  }
+
   /** The caller's receipts (as sender or recipient), newest first, with share links. */
   async listForUser(userId: string) {
     const rows = (await this.prisma.receipt.findMany({
@@ -180,4 +265,12 @@ export class ReceiptsService {
       }),
     };
   }
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
