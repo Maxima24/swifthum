@@ -49,10 +49,12 @@ export interface Wallet {
   balanceMinor: number;
   currency: 'NGN';
   notificationsEnabled?: boolean;
+  email?: string | null;
 }
 
 export interface UserPreferences {
   notificationsEnabled: boolean;
+  email?: string | null;
 }
 
 export interface PaymentIntent {

@@ -4,6 +4,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { RedisModule } from '../redis/redis.module';
 import { LedgerModule } from '../ledger/ledger.module';
 import { IdempotencyModule } from '../idempotency/idempotency.module';
+import { EmailModule } from '../email/email.module';
 import { AiModule } from '../ai/ai.module';
 import { SwiftyexModule } from '../swiftyex/swiftyex.module';
 import { BotModule } from '../bot/bot.module';
@@ -22,6 +23,7 @@ import { WatcherProcessor } from './watcher.processor';
     RedisModule,
     LedgerModule,
     IdempotencyModule,
+    EmailModule,
     AiModule,
     SwiftyexModule,
     BotModule,

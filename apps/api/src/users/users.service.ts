@@ -53,16 +53,19 @@ export class UsersService {
    */
   async updatePreferences(
     userId: string,
-    prefs: { notificationsEnabled?: boolean },
-  ): Promise<{ notificationsEnabled: boolean }> {
-    const data: { notificationsEnabled?: boolean } = {};
+    prefs: { notificationsEnabled?: boolean; email?: string },
+  ): Promise<{ notificationsEnabled: boolean; email: string | null }> {
+    const data: { notificationsEnabled?: boolean; email?: string } = {};
     if (prefs.notificationsEnabled !== undefined) {
       data.notificationsEnabled = prefs.notificationsEnabled;
+    }
+    if (prefs.email !== undefined) {
+      data.email = prefs.email.trim().toLowerCase();
     }
     const user = await this.prisma.user.update({
       where: { id: userId },
       data,
-      select: { notificationsEnabled: true },
+      select: { notificationsEnabled: true, email: true },
     });
     return user;
   }

@@ -14,6 +14,7 @@ model User {
   id                   String           @id
   telegramId           BigInt           @unique
   username             String?          @unique // lowercased Telegram @handle — for pay-by-username
+  email                String?          // optional — where the user wants emailed receipts
   displayName          String
   notificationsEnabled Boolean          @default(true)
   acquiredVia          String?          // funnel tag for users onboarded via a feature (e.g. 'gift')

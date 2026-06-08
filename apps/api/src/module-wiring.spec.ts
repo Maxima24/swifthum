@@ -3,6 +3,7 @@ import { AppModule } from './app.module';
 import { WorkerModule } from './worker/worker.module';
 import { LedgerModule } from './ledger/ledger.module';
 import { IdempotencyModule } from './idempotency/idempotency.module';
+import { EmailModule } from './email/email.module';
 import { ReceiptsModule } from './receipts/receipts.module';
 import { GiftsModule } from './gifts/gifts.module';
 import { PaymentsModule } from './payments/payments.module';
@@ -26,6 +27,7 @@ describe('module wiring', () => {
     for (const m of [
       LedgerModule,
       IdempotencyModule,
+      EmailModule,
       ReceiptsModule,
       GiftsModule,
       PaymentsModule,
@@ -40,6 +42,7 @@ describe('module wiring', () => {
     for (const m of [
       LedgerModule,
       IdempotencyModule,
+      EmailModule,
       ReceiptsModule,
       GiftsModule,
       PaymentsModule,

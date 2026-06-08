@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import type { ReceiptListItem, ReceiptVerifyResult } from '../types';
 
@@ -7,6 +7,22 @@ export function useReceipts() {
   return useQuery({
     queryKey: ['receipts'],
     queryFn: () => api<{ items: ReceiptListItem[] }>('/receipts'),
+  });
+}
+
+export interface EmailReceiptResult {
+  status: 'ok' | 'no_email' | 'not_configured';
+  to?: string;
+}
+
+/** Email a receipt to the caller (their saved email, or one passed in). */
+export function useEmailReceipt() {
+  return useMutation({
+    mutationFn: ({ receiptId, email }: { receiptId: string; email?: string }) =>
+      api<EmailReceiptResult>(`/receipts/${receiptId}/email`, {
+        method: 'POST',
+        body: JSON.stringify(email ? { email } : {}),
+      }),
   });
 }
 

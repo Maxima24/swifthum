@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useReceipts } from '../hooks/receipts';
+import { useReceipts, useEmailReceipt } from '../hooks/receipts';
 import { useBackButton } from '../hooks/useBackButton';
 import { haptic, copyText, shareTelegramLink } from '../lib/tg';
 import { formatNgn, formatRelativeTime } from '../lib/format';
@@ -16,7 +16,9 @@ const SOURCE_LABEL: Record<string, string> = {
 export function Receipts() {
   const navigate = useNavigate();
   const { data, isLoading } = useReceipts();
+  const emailReceipt = useEmailReceipt();
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [mail, setMail] = useState<{ id: string; text: string } | null>(null);
 
   useBackButton(useCallback(() => navigate('/pay'), [navigate]));
 
@@ -27,6 +29,28 @@ export function Receipts() {
       setTimeout(() => setCopiedId((c) => (c === r.id ? null : c)), 1500);
     }
   }, []);
+
+  const handleEmail = useCallback(
+    async (r: ReceiptListItem) => {
+      haptic('medium');
+      try {
+        const res = await emailReceipt.mutateAsync({ receiptId: r.id });
+        if (res.status === 'ok') {
+          haptic('success');
+          setMail({ id: r.id, text: `Sent to ${res.to ?? 'your inbox'} ✓` });
+        } else if (res.status === 'no_email') {
+          setMail({ id: r.id, text: 'Add your email in Settings first →' });
+        } else {
+          setMail({ id: r.id, text: 'Email isn’t set up yet' });
+        }
+      } catch {
+        haptic('error');
+        setMail({ id: r.id, text: 'Couldn’t send — try again' });
+      }
+      setTimeout(() => setMail((m) => (m?.id === r.id ? null : m)), 2800);
+    },
+    [emailReceipt],
+  );
 
   const items = data?.items ?? [];
 
@@ -85,6 +109,26 @@ export function Receipts() {
                   View
                 </Button>
               </div>
+
+              <Button
+                block
+                variant="secondary"
+                icon="send"
+                disabled={emailReceipt.isPending}
+                onClick={() => void handleEmail(r)}
+              >
+                {emailReceipt.isPending && emailReceipt.variables?.receiptId === r.id
+                  ? 'Sending…'
+                  : 'Email receipt'}
+              </Button>
+              {mail?.id === r.id && (
+                <button
+                  className="text-xs text-text-tertiary text-center"
+                  onClick={() => mail.text.includes('Settings') && navigate('/settings')}
+                >
+                  {mail.text}
+                </button>
+              )}
             </Card>
           ))}
         </div>

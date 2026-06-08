@@ -21,6 +21,7 @@ import { ReceiptsModule } from './receipts/receipts.module';
 import { EscrowModule } from './escrow/escrow.module';
 import { LedgerModule } from './ledger/ledger.module';
 import { IdempotencyModule } from './idempotency/idempotency.module';
+import { EmailModule } from './email/email.module';
 
 import { GlobalExceptionFilter } from './common/exception.filter';
 import { BigintSerializeInterceptor } from './common/serialize.interceptor';
@@ -33,6 +34,7 @@ import { HealthController } from './health/health.controller';
     RedisModule,
     LedgerModule,
     IdempotencyModule,
+    EmailModule,
     AiModule,
     SwiftyexModule,
     BotModule,
