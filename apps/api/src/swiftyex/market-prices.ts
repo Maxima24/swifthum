@@ -29,15 +29,23 @@ export interface MarketPricesResult {
 export async function getMarketPrices(
   opts: MarketPricesOptions = {},
 ): Promise<MarketPricesResult> {
-  // 0. Prefer the real SwiftyEx rates when configured. Null on any failure → fall through.
-  if (opts.swiftyexRatesUrl) {
-    const sx = await fetchSwiftyexRates(opts.swiftyexRatesUrl, opts.logger);
-    if (sx) {
-      opts.logger?.log('prices via SwiftyEx');
-      return { prices: sx, source: 'swiftyex' };
-    }
-  }
+  // SwiftyEx /miniapp/rates currently prices only USDT (usdnaira). Overlay whatever
+  // it provides on top of the base feed, which supplies the remaining assets.
+  const sx = opts.swiftyexRatesUrl
+    ? await fetchSwiftyexRates(opts.swiftyexRatesUrl, opts.logger)
+    : null;
 
+  const base = await getBasePrices(opts);
+
+  if (sx && Object.keys(sx).length > 0) {
+    opts.logger?.log(`prices: SwiftyEx overlay [${Object.keys(sx).join(',')}] on ${base.source}`);
+    return { prices: { ...base.prices, ...sx }, source: 'swiftyex' };
+  }
+  return base;
+}
+
+/** CoinGecko → CoinMarketCap → static — the non-SwiftyEx base feed. */
+async function getBasePrices(opts: MarketPricesOptions): Promise<MarketPricesResult> {
   const cg = await fetchCoingeckoPrices({ apiKey: opts.coingeckoKey, logger: opts.logger });
   if (cg.source === 'coingecko') return { prices: cg.prices, source: 'coingecko' };
 

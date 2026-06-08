@@ -3,10 +3,11 @@ import type { PriceMapMinor } from './swiftyex.port';
 
 /**
  * Fetch the public SwiftyEx `/miniapp/rates` and map it to the Watcher's
- * `PriceMapMinor` (NGN minor units for USDT/BTC/ETH). The exact response shape is
- * upstream-owned, so the parser is deliberately permissive (array or object;
- * buy/sell/rate/price fields) and **returns null on anything it can't confidently
- * map** — the caller then falls back to CoinGecko, so the Watcher never breaks.
+ * `PriceMapMinor` (NGN minor units). The live feed returns only `usdnaira`
+ * (USD/₦ ≈ the USDT rate), so the parser is **partial-tolerant**: it returns
+ * whatever assets it can map (`Partial<PriceMapMinor>`) — the caller overlays
+ * these on the CoinGecko base for the rest. Returns null only when *nothing*
+ * parses; the shape is upstream-owned so field handling is permissive.
  *
  * On the first successful fetch it logs the raw payload once, so the real shape
  * can be confirmed and this parser tuned if needed.
@@ -14,11 +15,16 @@ import type { PriceMapMinor } from './swiftyex.port';
 const TIMEOUT_MS = 3000;
 const ASSET_ALIASES: Record<string, keyof PriceMapMinor> = {
   USDT: 'USDT',
+  USDTNAIRA: 'USDT',
+  USDNAIRA: 'USDT', // the live SwiftyEx symbol (USD/₦)
+  USD: 'USDT',
   TETHER: 'USDT',
   BTC: 'BTC',
+  BTCNAIRA: 'BTC',
   BITCOIN: 'BTC',
   XBT: 'BTC',
   ETH: 'ETH',
+  ETHNAIRA: 'ETH',
   ETHEREUM: 'ETH',
 };
 
@@ -27,7 +33,7 @@ let loggedRawOnce = false;
 export async function fetchSwiftyexRates(
   baseUrl: string,
   logger?: Logger,
-): Promise<PriceMapMinor | null> {
+): Promise<Partial<PriceMapMinor> | null> {
   const url = baseUrl.replace(/\/$/, '');
   if (!url) return null;
 
@@ -49,23 +55,23 @@ export async function fetchSwiftyexRates(
   }
 }
 
-/** Exported for unit testing against sample payloads. */
-export function parseRates(raw: unknown): PriceMapMinor | null {
+/**
+ * Exported for unit testing. Returns whatever assets it can map (partial); null
+ * only when none parse. The caller overlays the partial on the CoinGecko base.
+ */
+export function parseRates(raw: unknown): Partial<PriceMapMinor> | null {
   const entries = toEntries(raw);
   if (!entries.length) return null;
 
-  const found: Partial<Record<keyof PriceMapMinor, bigint>> = {};
+  const found: Partial<PriceMapMinor> = {};
   for (const [keyHint, value] of entries) {
     const asset = ASSET_ALIASES[String(keyHint).toUpperCase()];
     if (!asset || found[asset] !== undefined) continue;
-    const ngn = pickNgn(value);
+    const ngn = pickPrice(value);
     if (ngn !== null && ngn > 0) found[asset] = BigInt(Math.round(ngn * 100));
   }
 
-  if (found.USDT === undefined || found.BTC === undefined || found.ETH === undefined) {
-    return null;
-  }
-  return { USDT: found.USDT, BTC: found.BTC, ETH: found.ETH };
+  return Object.keys(found).length ? found : null;
 }
 
 /** Normalize array-of-objects OR an object map into [assetHint, valueObject] pairs. */
@@ -85,6 +91,21 @@ function toEntries(raw: unknown): Array<[string, unknown]> {
     return Object.entries(o);
   }
   return [];
+}
+
+/**
+ * A representative NGN price for a rate entry. When both buy & sell are present
+ * (e.g. usdnaira 1355/1430) use the **mid** (1392.5); otherwise fall back to the
+ * single buy/rate/price/sell value. Also accepts a bare number/string.
+ */
+function pickPrice(value: unknown): number | null {
+  if (value && typeof value === 'object') {
+    const o = value as Record<string, unknown>;
+    const buy = pickNgn(o.buy ?? o.buy_rate);
+    const sell = pickNgn(o.sell ?? o.sell_rate);
+    if (buy !== null && sell !== null) return (buy + sell) / 2;
+  }
+  return pickNgn(value);
 }
 
 /** Pull an NGN price from a rate entry — number or numeric string in buy/rate/price/sell. */

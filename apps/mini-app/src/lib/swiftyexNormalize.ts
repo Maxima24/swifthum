@@ -53,6 +53,16 @@ export function normalizeWallets(raw: unknown): SxWallet[] {
   }));
 }
 
+/** Friendly label for a rate symbol (e.g. `usdnaira` → `USDT · USD/₦`). */
+export function prettyRateLabel(asset?: string): string {
+  if (!asset) return '—';
+  const a = asset.toLowerCase();
+  if (a === 'usdnaira' || a === 'usdtnaira' || a === 'usdt') return 'USDT · USD/₦';
+  if (a === 'btcnaira') return 'BTC/₦';
+  if (a === 'ethnaira') return 'ETH/₦';
+  return asset.toUpperCase();
+}
+
 export function normalizeRates(raw: unknown): SxRate[] {
   return asArray(raw)
     .map((item) => ({
