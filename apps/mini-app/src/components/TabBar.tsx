@@ -6,12 +6,14 @@ import { cn } from '../ui';
 const TABS: { to: string; label: string; icon: IconName }[] = [
   { to: '/rules', label: 'Rules', icon: 'rules' },
   { to: '/pay', label: 'Pay', icon: 'wallet' },
+  { to: '/markets', label: 'Markets', icon: 'trending-up' },
   { to: '/settings', label: 'Settings', icon: 'settings' },
 ];
 
 const HIDE_ON: RegExp[] = [
   /^\/rules\/[^/]+/, // /rules/new, /rules/:id
   /^\/pay\/(send|send-to-user|receive|gifts|receipts|escrow)/,
+  /^\/markets\/[^/]+/, // /markets/transactions
 ];
 
 export function TabBar() {

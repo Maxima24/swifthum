@@ -1032,6 +1032,46 @@ createdAt, deepLink? }` (deepLink only for the creator while PROPOSED).
 
 ## 22. Pay by @username (direct wallet → wallet)
 
+- `User.username` (lowercased Telegram @handle, `@unique`) captured on Mini-App
+  sign-in (`upsertByTelegram`) and forwarded by the bot on `/auth/bot/exchange`
+  (optional `username`); a re-used handle is reassigned to its current owner.
+- `GET /users/lookup?username=` → `{ found, displayName?, username? }`.
+- `POST /transfers` `{ recipientUsername, amountMinor }` (Idempotency-Key aware) —
+  one-shot `wallet → wallet` `LedgerService.transfer` (kind `transfer`), Transaction
+  projection (sent/received), receipt (`sourceType:'payment'`), `payment_sent`/
+  `payment_received` DMs. Rejects unknown handle / self-send / insufficient funds.
+- Surfaces: Mini-App `/pay/send-to-user`; bot `/pay @username <amount>` (Confirm/Cancel
+  inline buttons; unknown handle → offer a gift link). Only resolves existing SwiftHum
+  users; the gift link onboards everyone else.
+
+---
+
+## 23. SwiftyEx Mini App API integration (real read-only data)
+
+Proxies the real SwiftyEx Mini App API (`/miniapp/{me,wallets,transactions,rates}`,
+auth = Telegram **initData** in the body). SwiftHum's internal ledger stays the money
+engine — this is data enrichment. Gated on `SWIFTYEX_MINIAPP_BASE_URL` (unset →
+graceful fallback). `SwiftyexMiniAppService` is the server-side client.
+
+- **Rates → Watcher:** `getMarketPrices` tries `<url>/miniapp/rates` **first**
+  (`source:'swiftyex'`, public, no initData) → CoinGecko → CMC → static. Parser in
+  `swiftyex-rates.ts` (defensive; logs the raw shape once; `null` → fall through).
+- **Proxy endpoints** (JWT-authed; per-user ones read `X-Telegram-InitData`, sent by
+  the Mini-App's `api.ts` on every call): `GET /swiftyex/rates`, `/swiftyex/wallets`,
+  `/swiftyex/me`, `/swiftyex/sx-transactions?page=&wallet_type=`. Each returns
+  `{ configured, … }`; responses are **passed through** (shapes upstream-owned;
+  Mini-App normalizes defensively in `lib/swiftyexNormalize.ts`).
+- **Constraint:** per-user data (wallets/me/transactions) is **Mini-App only** — the
+  bot can't obtain a user's initData. The bot's `/prices` still shows real rates
+  (they flow through the Watcher's price source).
+- **Surface:** Mini-App **Markets** tab (`/markets`) — KYC badge, real wallet balances
+  + deposit addresses, buy/sell rates, and `/markets/transactions` history.
+- **Env:** `SWIFTYEX_MINIAPP_BASE_URL` (the live SwiftyEx host). No migration.
+
+---
+
+## 22. Pay by @username (direct wallet → wallet)
+
 Send NGN straight to another SwiftHum user by their Telegram @handle — no QR,
 gift link, or intent/redeem dance (both parties are known). For non-users, the UI
 falls back to a gift link (which onboards them).

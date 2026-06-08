@@ -14,6 +14,8 @@ import { ReceiptView } from './routes/ReceiptView';
 import { EscrowCreate } from './routes/EscrowCreate';
 import { EscrowList } from './routes/EscrowList';
 import { EscrowDetail } from './routes/EscrowDetail';
+import { Markets } from './routes/Markets';
+import { MarketsTransactions } from './routes/MarketsTransactions';
 import { TabBar } from './components/TabBar';
 import { Sidebar } from './components/Sidebar';
 import { Shell } from './components/Shell';
@@ -55,6 +57,8 @@ export function App() {
           <Route path="/pay/escrow" element={<EscrowList />} />
           <Route path="/pay/escrow/new" element={<EscrowCreate />} />
           <Route path="/pay/escrow/:id" element={<EscrowDetail />} />
+          <Route path="/markets" element={<Markets />} />
+          <Route path="/markets/transactions" element={<MarketsTransactions />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/rules" replace />} />
         </Routes>

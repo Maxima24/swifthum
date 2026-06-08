@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { SandboxSwiftyexClient } from './sandbox.client';
 import { LiveSwiftyexClient } from './live.client';
 import { SwiftyexService } from './swiftyex.service';
+import { SwiftyexMiniAppService } from './miniapp.service';
 import { SwiftyexController } from './swiftyex.controller';
 import { SWIFTYEX_CLIENT } from './swiftyex.port';
 
@@ -31,7 +32,8 @@ import { SWIFTYEX_CLIENT } from './swiftyex.port';
       inject: [ConfigService, SandboxSwiftyexClient, LiveSwiftyexClient],
     },
     SwiftyexService,
+    SwiftyexMiniAppService,
   ],
-  exports: [SwiftyexService],
+  exports: [SwiftyexService, SwiftyexMiniAppService],
 })
 export class SwiftyexModule {}
