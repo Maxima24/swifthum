@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { AppModule } from './app.module';
 import { WorkerModule } from './worker/worker.module';
 import { LedgerModule } from './ledger/ledger.module';
+import { IdempotencyModule } from './idempotency/idempotency.module';
 import { ReceiptsModule } from './receipts/receipts.module';
 import { GiftsModule } from './gifts/gifts.module';
 import { PaymentsModule } from './payments/payments.module';
@@ -22,14 +23,28 @@ function importsOf(mod: object): unknown[] {
 describe('module wiring', () => {
   it('AppModule registers the money/receipt modules its services depend on', () => {
     const imports = importsOf(AppModule);
-    for (const m of [LedgerModule, ReceiptsModule, GiftsModule, PaymentsModule, EscrowModule]) {
+    for (const m of [
+      LedgerModule,
+      IdempotencyModule,
+      ReceiptsModule,
+      GiftsModule,
+      PaymentsModule,
+      EscrowModule,
+    ]) {
       expect(imports).toContain(m);
     }
   });
 
   it('WorkerModule registers the modules its processor depends on', () => {
     const imports = importsOf(WorkerModule);
-    for (const m of [LedgerModule, ReceiptsModule, GiftsModule, PaymentsModule, EscrowModule]) {
+    for (const m of [
+      LedgerModule,
+      IdempotencyModule,
+      ReceiptsModule,
+      GiftsModule,
+      PaymentsModule,
+      EscrowModule,
+    ]) {
       expect(imports).toContain(m);
     }
   });
