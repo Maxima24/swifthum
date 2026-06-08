@@ -118,16 +118,16 @@ export function Pay() {
             subtitle="You get a one-time token that expires in 30s."
           />
           <ListRow
-            icon="speaker"
+            icon="qr"
             iconTone="accent"
-            label="Broadcast over sound or QR"
-            subtitle="Ultrasonic chirp — or a QR if it's too noisy."
+            label="Show the QR code"
+            subtitle="The receiver scans it — or pay a @username directly."
           />
           <ListRow
             icon="check-circle"
             iconTone="accent"
-            label="Receiver decodes it"
-            subtitle="The wallet credits instantly."
+            label="Receiver gets it instantly"
+            subtitle="The wallet credits in real time."
           />
         </ListGroup>
       </div>

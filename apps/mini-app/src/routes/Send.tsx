@@ -10,23 +10,13 @@ import { useBackButton } from '../hooks/useBackButton';
 import { useMainButton } from '../hooks/useMainButton';
 import { haptic } from '../lib/tg';
 import { formatNgn } from '../lib/format';
-import { encode, initGgwave, playSamples } from '../lib/ggwave';
 import { friendlySendError } from '../lib/errors';
 import { QrDisplay } from '../components/QrDisplay';
 import { Icon } from '../components/Icon';
 import type { PaymentIntent } from '../types';
-import {
-  Header,
-  Card,
-  Button,
-  Segmented,
-  AmountInput,
-  Spinner,
-  EmptyState,
-} from '../ui';
+import { Header, Card, Button, AmountInput } from '../ui';
 
 type Stage = 'amount' | 'broadcast' | 'done';
-type Mode = 'sound' | 'qr';
 
 const QUICK_AMOUNTS = [1000, 5000, 10000, 25000, 50000, 100000];
 
@@ -48,10 +38,7 @@ export function Send() {
   const [amountNgn, setAmountNgn] = useState<string>(() =>
     initialAmountFromQuery(searchParams),
   );
-  const [mode, setMode] = useState<Mode>('sound');
   const [intent, setIntent] = useState<PaymentIntent | null>(null);
-  const [soundReady, setSoundReady] = useState(false);
-  const [soundError, setSoundError] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(30);
 
@@ -124,37 +111,6 @@ export function Send() {
     const id = setInterval(tick, 500);
     return () => clearInterval(id);
   }, [stage, intent, paid]);
-
-  useEffect(() => {
-    if (stage !== 'broadcast' || mode !== 'sound' || !intent || paid) return;
-    let cancelled = false;
-    let ctx: AudioContext | null = null;
-
-    (async () => {
-      const ok = await initGgwave();
-      if (!ok) {
-        if (!cancelled) setSoundError('Sound mode unavailable — switch to QR.');
-        return;
-      }
-      if (cancelled) return;
-      setSoundReady(true);
-      ctx = new AudioContext();
-      const samples = encode(intent.token);
-      if (!samples) {
-        setSoundError('Encoding failed.');
-        return;
-      }
-      while (!cancelled && Date.now() < new Date(intent.expiresAt).getTime()) {
-        await playSamples(samples, ctx);
-        await new Promise((r) => setTimeout(r, 1200));
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      ctx?.close().catch(() => {});
-    };
-  }, [stage, mode, intent, paid]);
 
   if (stage === 'amount') {
     return (
@@ -262,61 +218,12 @@ export function Send() {
         </div>
       ) : (
         <div className="flex flex-col gap-6 pt-5">
-          <Segmented<Mode>
-            value={mode}
-            onChange={(m) => {
-              haptic('light');
-              setMode(m);
-            }}
-            options={[
-              { value: 'sound', label: 'Sound', icon: 'speaker' },
-              { value: 'qr', label: 'QR code', icon: 'qr' },
-            ]}
-          />
-
-          {mode === 'sound' ? (
-            <Card padded={false} className="p-8 min-h-[280px] flex items-center justify-center">
-              {soundError ? (
-                <EmptyState
-                  icon="alert"
-                  title="Sound unavailable"
-                  description={soundError}
-                  action={
-                    <Button
-                      variant="secondary"
-                      onClick={() => {
-                        haptic('light');
-                        setMode('qr');
-                      }}
-                    >
-                      Switch to QR
-                    </Button>
-                  }
-                />
-              ) : (
-                <div className="flex flex-col items-center gap-5 text-center">
-                  <span className="w-20 h-20 rounded-full bg-accent-soft text-accent flex items-center justify-center">
-                    <Icon name="speaker" size={32} />
-                  </span>
-                  <div className="flex items-center gap-2 text-text-secondary">
-                    {soundReady && <Spinner size={16} />}
-                    <p className="text-sm max-w-[16rem] leading-snug">
-                      {soundReady
-                        ? 'Broadcasting ultrasonic chirp. Keep the receiver within ~6 feet.'
-                        : 'Warming up audio…'}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </Card>
-          ) : (
-            <Card className="flex flex-col items-center gap-4">
-              {intent && <QrDisplay value={intent.token} size={220} />}
-              <p className="text-sm text-text-secondary text-center max-w-[16rem]">
-                Receiver opens Pay → Receive → Scan QR.
-              </p>
-            </Card>
-          )}
+          <Card className="flex flex-col items-center gap-4">
+            {intent && <QrDisplay value={intent.token} size={220} />}
+            <p className="text-sm text-text-secondary text-center max-w-[16rem]">
+              Receiver opens Pay → Receive → Scan QR.
+            </p>
+          </Card>
 
           <p className="text-xs text-text-tertiary text-center px-2 leading-snug">
             {formatNgn(amountMinor)} is reserved — instantly refunded if you cancel or it isn’t

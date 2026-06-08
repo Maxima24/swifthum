@@ -30,7 +30,7 @@ def build_router(api: ApiClient, settings: Settings) -> Router:
         await message.answer(
             "👋 Welcome to <b>SwiftHum</b>!\n\n"
             "I monitor your auto-trading rules and notify you when they fire. "
-            "Open the Mini App to manage your wallet, rules, and ultrasonic payments.\n\n"
+            "Open the Mini App to manage your wallet, rules, and payments.\n\n"
             "Use /help to see chat commands.",
             reply_markup=webapp_launch_kb(settings.miniapp_url),
         )
