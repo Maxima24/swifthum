@@ -35,6 +35,7 @@ interface ReceiptRow {
   asset: string;
   amountMinor: bigint;
   token: string;
+  emailedAt: Date | null;
   createdAt: Date;
 }
 
@@ -190,9 +191,57 @@ export class ReceiptsService {
 
     const direction = receipt.toUserId === userId ? 'received' : 'sent';
     const res = await this.email.send(this.buildReceiptEmail(receipt, to, direction));
-    if (res.ok) return { status: 'ok', to };
+    if (res.ok) {
+      await this.markEmailed(receipt.id);
+      return { status: 'ok', to };
+    }
     // SMTP is configured but the send was rejected (e.g. bad Gmail app password).
     return { status: 'failed', error: (res.error ?? 'send failed').slice(0, 160) };
+  }
+
+  /**
+   * Fire-and-forget auto-email after a transaction commits. Emails every party
+   * who has a saved email (their direction-appropriate copy) and marks the
+   * receipt emailed. **Never throws and never blocks the caller** — call it as
+   * `void this.receipts.autoEmail(...)` right after the money tx resolves.
+   */
+  async autoEmail(sourceType: string, sourceId: string): Promise<void> {
+    try {
+      if (!this.email.isConfigured()) return;
+      const receipt = (await this.prisma.receipt.findFirst({
+        where: { sourceType, sourceId },
+        orderBy: { createdAt: 'desc' },
+      })) as ReceiptRow | null;
+      if (!receipt || receipt.emailedAt) return;
+
+      const [fromUser, toUser] = await Promise.all([
+        this.prisma.user.findUnique({ where: { id: receipt.fromUserId }, select: { email: true } }),
+        this.prisma.user.findUnique({ where: { id: receipt.toUserId }, select: { email: true } }),
+      ]);
+
+      let sent = 0;
+      if (toUser?.email) {
+        const r = await this.email.send(this.buildReceiptEmail(receipt, toUser.email, 'received'));
+        if (r.ok) sent++;
+      }
+      if (fromUser?.email) {
+        const r = await this.email.send(this.buildReceiptEmail(receipt, fromUser.email, 'sent'));
+        if (r.ok) sent++;
+      }
+
+      if (sent > 0) {
+        await this.markEmailed(receipt.id);
+        this.logger.log(`auto-emailed ${receipt.id} → ${sent}`);
+      }
+    } catch (err) {
+      this.logger.warn(`autoEmail failed (${sourceType}/${sourceId}): ${(err as Error).message}`);
+    }
+  }
+
+  private markEmailed(receiptId: string) {
+    return this.prisma.receipt
+      .update({ where: { id: receiptId }, data: { emailedAt: new Date() } })
+      .catch(() => undefined);
   }
 
   private buildReceiptEmail(
@@ -262,6 +311,7 @@ export class ReceiptsService {
           counterparty: { displayName: direction === 'received' ? r.fromName : r.toName },
           url: `${this.miniappUrl}/r/${r.id}?token=${r.token}`,
           token: r.token,
+          emailedAt: r.emailedAt ? r.emailedAt.toISOString() : null,
           createdAt: r.createdAt.toISOString(),
         };
       }),

@@ -160,6 +160,7 @@ export interface ReceiptListItem {
   counterparty: { displayName: string };
   url: string; // https://<miniapp>/r/<id>?token=<token>
   token: string;
+  emailedAt?: string | null; // set once the receipt has been emailed (auto or manual)
   createdAt: string;
 }
 

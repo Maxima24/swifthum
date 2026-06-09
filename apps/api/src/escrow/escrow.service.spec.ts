@@ -118,7 +118,7 @@ function makeService(seed: {
     }),
   } as unknown as LedgerService;
 
-  const receipts = { emit: jest.fn(async () => ({ id: 'rcpt_test' })) } as any;
+  const receipts = { emit: jest.fn(async () => ({ id: 'rcpt_test' })), autoEmail: jest.fn(async () => undefined) } as any;
   const botPush = { publish: jest.fn(async () => undefined) } as any;
   const ai = { resolveDispute: jest.fn(async () => ({ decision: seed.aiDecision ?? 'refund', reasoning: 'ai test' })) } as any;
   const config = { get: (k: string, d?: string) => (k === 'BOT_USERNAME' ? 'swifthum_bot' : k === 'ESCROW_TTL_HOURS' ? '72' : d) } as unknown as ConfigService;

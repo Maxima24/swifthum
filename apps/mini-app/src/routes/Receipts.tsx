@@ -5,6 +5,7 @@ import { useBackButton } from '../hooks/useBackButton';
 import { haptic, copyText, shareTelegramLink } from '../lib/tg';
 import { formatNgn, formatRelativeTime } from '../lib/format';
 import { Header, Card, Button, Badge, Spinner, EmptyState } from '../ui';
+import { Icon } from '../components/Icon';
 import type { ReceiptListItem } from '../types';
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -113,17 +114,34 @@ export function Receipts() {
                 </Button>
               </div>
 
-              <Button
-                block
-                variant="secondary"
-                icon="send"
-                disabled={emailReceipt.isPending}
-                onClick={() => void handleEmail(r)}
-              >
-                {emailReceipt.isPending && emailReceipt.variables?.receiptId === r.id
-                  ? 'Sending…'
-                  : 'Email receipt'}
-              </Button>
+              {r.emailedAt && mail?.id !== r.id ? (
+                <div className="flex items-center justify-center gap-3 pt-0.5">
+                  <span className="inline-flex items-center gap-1 text-sm font-semibold text-success">
+                    <Icon name="check-circle" size={15} /> Emailed
+                  </span>
+                  <button
+                    className="text-xs text-text-tertiary underline-offset-2 hover:underline disabled:opacity-50"
+                    disabled={emailReceipt.isPending}
+                    onClick={() => void handleEmail(r)}
+                  >
+                    {emailReceipt.isPending && emailReceipt.variables?.receiptId === r.id
+                      ? 'Sending…'
+                      : 'Resend'}
+                  </button>
+                </div>
+              ) : (
+                <Button
+                  block
+                  variant="secondary"
+                  icon="send"
+                  disabled={emailReceipt.isPending}
+                  onClick={() => void handleEmail(r)}
+                >
+                  {emailReceipt.isPending && emailReceipt.variables?.receiptId === r.id
+                    ? 'Sending…'
+                    : 'Email receipt'}
+                </Button>
+              )}
               {mail?.id === r.id && (
                 <button
                   className="text-xs text-text-tertiary text-center"

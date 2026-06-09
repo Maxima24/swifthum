@@ -115,7 +115,7 @@ function makeService(seed: {
     }),
   } as unknown as LedgerService;
 
-  const receipts = { emit: jest.fn(async () => ({ id: 'rcpt_test' })) } as any;
+  const receipts = { emit: jest.fn(async () => ({ id: 'rcpt_test' })), autoEmail: jest.fn(async () => undefined) } as any;
   const usersSvc = {
     findByUsername: jest.fn(async (raw: string) => {
       const handle = raw.trim().replace(/^@+/, '').toLowerCase();
