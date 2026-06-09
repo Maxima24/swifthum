@@ -3,7 +3,9 @@ import { ReceiptsService } from './receipts.service';
 
 const SECRET = 'test-signed-token-secret';
 
-function makeService(opts: { emailConfigured?: boolean; userEmail?: string | null } = {}) {
+function makeService(
+  opts: { emailConfigured?: boolean; userEmail?: string | null; sendFails?: boolean } = {},
+) {
   const store = new Map<string, any>();
   const db: any = {
     $transaction: async (fn: (tx: unknown) => unknown) => fn(db),
@@ -44,7 +46,9 @@ function makeService(opts: { emailConfigured?: boolean; userEmail?: string | nul
 
   const email = {
     isConfigured: jest.fn(() => opts.emailConfigured ?? true),
-    send: jest.fn(async () => true),
+    send: jest.fn(async () =>
+      opts.sendFails ? { ok: false, error: '535 Invalid login' } : { ok: true },
+    ),
   } as any;
 
   const svc = new ReceiptsService(db, email, config);
@@ -132,6 +136,14 @@ describe('ReceiptsService.emailReceipt', () => {
     const { svc, db } = makeService({ emailConfigured: false, userEmail: 'a@b.com' });
     const row = await svc.emit(db, baseArgs);
     expect((await svc.emailReceipt('u_a', row.id)).status).toBe('not_configured');
+  });
+
+  it('returns failed (with the SMTP error) when configured but the send is rejected', async () => {
+    const { svc, db } = makeService({ emailConfigured: true, userEmail: 'a@b.com', sendFails: true });
+    const row = await svc.emit(db, baseArgs);
+    const res = await svc.emailReceipt('u_a', row.id);
+    expect(res.status).toBe('failed');
+    expect(res.error).toContain('535');
   });
 
   it('rejects a non-party (404, does not reveal the receipt)', async () => {

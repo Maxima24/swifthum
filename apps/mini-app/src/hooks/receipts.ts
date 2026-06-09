@@ -11,8 +11,9 @@ export function useReceipts() {
 }
 
 export interface EmailReceiptResult {
-  status: 'ok' | 'no_email' | 'not_configured';
+  status: 'ok' | 'no_email' | 'not_configured' | 'failed';
   to?: string;
+  error?: string;
 }
 
 /** Email a receipt to the caller (their saved email, or one passed in). */
