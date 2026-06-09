@@ -40,8 +40,11 @@ export function Receipts() {
           setMail({ id: r.id, text: `Sent to ${res.to ?? 'your inbox'} ✓` });
         } else if (res.status === 'no_email') {
           setMail({ id: r.id, text: 'Add your email in Settings first →' });
+        } else if (res.status === 'failed') {
+          haptic('error');
+          setMail({ id: r.id, text: `Email failed — ${res.error ?? 'check SMTP setup'}` });
         } else {
-          setMail({ id: r.id, text: 'Email isn’t set up yet' });
+          setMail({ id: r.id, text: 'Email isn’t set up on the server yet' });
         }
       } catch {
         haptic('error');

@@ -167,7 +167,7 @@ export class ReceiptsService {
     userId: string,
     receiptId: string,
     emailOverride?: string,
-  ): Promise<{ status: 'ok' | 'no_email' | 'not_configured'; to?: string }> {
+  ): Promise<{ status: 'ok' | 'no_email' | 'not_configured' | 'failed'; to?: string; error?: string }> {
     const receipt = (await this.prisma.receipt.findUnique({
       where: { id: receiptId },
     })) as ReceiptRow | null;
@@ -189,8 +189,10 @@ export class ReceiptsService {
     if (!to) return { status: 'no_email' };
 
     const direction = receipt.toUserId === userId ? 'received' : 'sent';
-    const sent = await this.email.send(this.buildReceiptEmail(receipt, to, direction));
-    return sent ? { status: 'ok', to } : { status: 'not_configured' };
+    const res = await this.email.send(this.buildReceiptEmail(receipt, to, direction));
+    if (res.ok) return { status: 'ok', to };
+    // SMTP is configured but the send was rejected (e.g. bad Gmail app password).
+    return { status: 'failed', error: (res.error ?? 'send failed').slice(0, 160) };
   }
 
   private buildReceiptEmail(
