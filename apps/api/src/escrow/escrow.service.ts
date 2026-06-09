@@ -225,6 +225,7 @@ export class EscrowService {
       emitReceipt: true,
     });
     void this.notify(escrow.creatorId, 'escrow_completed', escrow, userId);
+    void this.receipts.autoEmail('escrow', escrow.id);
     return this.toSummary(escrow, userId);
   }
 
@@ -301,6 +302,7 @@ export class EscrowService {
     if (updated.counterpartyId) {
       void this.notify(updated.counterpartyId, 'escrow_resolved', updated, updated.creatorId, data);
     }
+    if (decision === 'release') void this.receipts.autoEmail('escrow', updated.id);
     const summary = await this.toSummary(updated, updated.creatorId);
     return { ...summary, resolution: decision, reasoning };
   }

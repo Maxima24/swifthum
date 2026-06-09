@@ -257,6 +257,8 @@ export async function mockApi<T>(path: string, init?: RequestInit): Promise<T> {
   if (emailReceiptMatch && method === 'POST') {
     const to = (body?.email as string) || wallet.email;
     if (!to) return { status: 'no_email' } as T;
+    const rcpt = receipts.find((r) => r.id === emailReceiptMatch[1]);
+    if (rcpt) rcpt.emailedAt = new Date().toISOString();
     return { status: 'ok', to } as T;
   }
 

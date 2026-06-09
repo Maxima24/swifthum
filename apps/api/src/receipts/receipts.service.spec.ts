@@ -4,18 +4,32 @@ import { ReceiptsService } from './receipts.service';
 const SECRET = 'test-signed-token-secret';
 
 function makeService(
-  opts: { emailConfigured?: boolean; userEmail?: string | null; sendFails?: boolean } = {},
+  opts: {
+    emailConfigured?: boolean;
+    userEmail?: string | null;
+    emails?: Record<string, string | null>;
+    sendFails?: boolean;
+  } = {},
 ) {
   const store = new Map<string, any>();
   const db: any = {
     $transaction: async (fn: (tx: unknown) => unknown) => fn(db),
     receipt: {
       create: async ({ data }: any) => {
-        const row = { ...data, createdAt: new Date() };
+        const row = { ...data, emailedAt: data.emailedAt ?? null, createdAt: new Date() };
         store.set(row.id, row);
         return row;
       },
       findUnique: async ({ where }: any) => store.get(where.id) ?? null,
+      findFirst: async ({ where }: any) =>
+        [...store.values()].find(
+          (r) => r.sourceType === where.sourceType && r.sourceId === where.sourceId,
+        ) ?? null,
+      update: async ({ where, data }: any) => {
+        const row = store.get(where.id);
+        if (row) Object.assign(row, data);
+        return row;
+      },
       findMany: async ({ where }: any) => {
         const rows = [...store.values()];
         if (where?.OR) {
@@ -30,7 +44,9 @@ function makeService(
       },
     },
     user: {
-      findUnique: async () => ({ email: opts.userEmail ?? null }),
+      findUnique: async ({ where }: any) => ({
+        email: opts.emails ? (opts.emails[where.id] ?? null) : (opts.userEmail ?? null),
+      }),
     },
   };
 
@@ -108,8 +124,8 @@ describe('ReceiptsService.emit + verifyToken', () => {
 });
 
 describe('ReceiptsService.emailReceipt', () => {
-  it('sends to the caller’s saved email when configured', async () => {
-    const { svc, db, email } = makeService({ emailConfigured: true, userEmail: 'ada@gmail.com' });
+  it('sends to the caller’s saved email when configured + marks it emailed', async () => {
+    const { svc, db, store, email } = makeService({ emailConfigured: true, userEmail: 'ada@gmail.com' });
     const row = await svc.emit(db, baseArgs);
     const res = await svc.emailReceipt('u_a', row.id);
     expect(res.status).toBe('ok');
@@ -117,6 +133,7 @@ describe('ReceiptsService.emailReceipt', () => {
     expect(email.send).toHaveBeenCalledWith(
       expect.objectContaining({ to: 'ada@gmail.com', subject: expect.stringContaining('SwiftHum receipt') }),
     );
+    expect(store.get(row.id).emailedAt).toBeInstanceOf(Date);
   });
 
   it('uses an override email over the saved one', async () => {
@@ -150,6 +167,51 @@ describe('ReceiptsService.emailReceipt', () => {
     const { svc, db } = makeService({ userEmail: 'x@y.com' });
     const row = await svc.emit(db, baseArgs);
     await expect(svc.emailReceipt('u_stranger', row.id)).rejects.toMatchObject({ code: 'not_found' });
+  });
+});
+
+describe('ReceiptsService.autoEmail (fire-and-forget on success)', () => {
+  it('emails every party with a saved email + marks the receipt emailed', async () => {
+    const { svc, db, store, email } = makeService({
+      emails: { u_a: 'from@x.com', u_b: 'to@x.com' },
+    });
+    const row = await svc.emit(db, baseArgs); // from u_a → to u_b
+    await svc.autoEmail('payment', 'i_1');
+    expect(email.send).toHaveBeenCalledTimes(2);
+    expect(email.send).toHaveBeenCalledWith(expect.objectContaining({ to: 'to@x.com' }));
+    expect(email.send).toHaveBeenCalledWith(expect.objectContaining({ to: 'from@x.com' }));
+    expect(store.get(row.id).emailedAt).toBeInstanceOf(Date);
+  });
+
+  it('only emails the party that has an email', async () => {
+    const { svc, db, email } = makeService({ emails: { u_a: null, u_b: 'to@x.com' } });
+    await svc.emit(db, baseArgs);
+    await svc.autoEmail('payment', 'i_1');
+    expect(email.send).toHaveBeenCalledTimes(1);
+    expect(email.send).toHaveBeenCalledWith(expect.objectContaining({ to: 'to@x.com' }));
+  });
+
+  it('is a no-op when already emailed, no party emails, or SMTP is off', async () => {
+    const already = makeService({ emails: { u_b: 'to@x.com' } });
+    const r = await already.svc.emit(already.db, baseArgs);
+    already.store.get(r.id).emailedAt = new Date();
+    await already.svc.autoEmail('payment', 'i_1');
+    expect(already.email.send).not.toHaveBeenCalled();
+
+    const none = makeService({ emails: {} });
+    await none.svc.emit(none.db, baseArgs);
+    await none.svc.autoEmail('payment', 'i_1');
+    expect(none.email.send).not.toHaveBeenCalled();
+
+    const off = makeService({ emailConfigured: false, emails: { u_b: 'to@x.com' } });
+    await off.svc.emit(off.db, baseArgs);
+    await off.svc.autoEmail('payment', 'i_1');
+    expect(off.email.send).not.toHaveBeenCalled();
+  });
+
+  it('never throws (best-effort)', async () => {
+    const { svc } = makeService();
+    await expect(svc.autoEmail('payment', 'does-not-exist')).resolves.toBeUndefined();
   });
 });
 
