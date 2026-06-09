@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import type { ReceiptListItem, ReceiptVerifyResult } from '../types';
 
@@ -18,12 +18,16 @@ export interface EmailReceiptResult {
 
 /** Email a receipt to the caller (their saved email, or one passed in). */
 export function useEmailReceipt() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ receiptId, email }: { receiptId: string; email?: string }) =>
       api<EmailReceiptResult>(`/receipts/${receiptId}/email`, {
         method: 'POST',
         body: JSON.stringify(email ? { email } : {}),
       }),
+    onSuccess: (res) => {
+      if (res.status === 'ok') qc.invalidateQueries({ queryKey: ['receipts'] });
+    },
   });
 }
 

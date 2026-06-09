@@ -233,8 +233,9 @@ export class PaymentsService {
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
 
-    // Fire-and-forget notifications AFTER commit.
+    // Fire-and-forget notifications + receipt email AFTER commit (never blocks).
     void this.publishRedeemNotifications(result, receiverId);
+    void this.receipts.autoEmail('payment', result.intent.id);
 
     return {
       status: 'ok' as const,
@@ -315,6 +316,7 @@ export class PaymentsService {
       sender.displayName,
       recipient.displayName,
     );
+    void this.receipts.autoEmail('payment', transferId);
 
     return {
       status: 'ok' as const,

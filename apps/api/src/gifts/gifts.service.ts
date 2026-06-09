@@ -171,6 +171,7 @@ export class GiftsService {
     );
 
     void this.publishClaimNotifications(result, receiverId);
+    void this.receipts.autoEmail('gift', result.gift.id);
 
     return {
       status: 'ok' as const,

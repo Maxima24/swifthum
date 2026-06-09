@@ -252,6 +252,7 @@ model Receipt {
   asset       String   @default("NGN")
   amountMinor BigInt
   token       String   // signed shareable token (embeds nonce/iat/exp)
+  emailedAt   DateTime? // set once the receipt has been emailed (auto on success, or manual)
   createdAt   DateTime @default(now())
 
   @@index([sourceType, sourceId])
